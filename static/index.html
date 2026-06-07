@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance MultiView - Live Trading Dashboard</title>
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lightweight Charts Local -->
+    <script src="lightweight-charts.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-logo">
+            <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1>FINANCE <span class="logo-accent">MULTIVIEW</span></h1>
+        </div>
+        
+        <div class="layout-controls">
+            <span class="control-label">Number of Charts:</span>
+            <div class="button-group" id="layout-selector">
+                <button class="layout-btn" data-count="1">1</button>
+                <button class="layout-btn" data-count="2">2</button>
+                <button class="layout-btn active" data-count="4">4</button>
+                <button class="layout-btn" data-count="6">6</button>
+                <button class="layout-btn" data-count="8">8</button>
+            </div>
+        </div>
+
+        <div class="connection-status">
+            <span class="status-dot connected" id="ws-status-dot"></span>
+            <span class="status-text" id="ws-status-text">Disconnected</span>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <div id="charts-grid" class="grid-container grid-4">
+            <!-- Dynamic Chart Panes will be injected here by app.js -->
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
