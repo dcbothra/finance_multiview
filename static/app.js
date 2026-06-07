@@ -174,7 +174,7 @@ function createPanes() {
                         <option value="1w" ${savedTimeframe === "1w" ? "selected" : ""}>1w</option>
                         <option value="1mo" ${savedTimeframe === "1mo" ? "selected" : ""}>1mo</option>
                     </select>
-                    \${generateIndicatorDropdownHTML(paneId, savedIndicator)}
+                    ${generateIndicatorDropdownHTML(paneId, savedIndicator)}
                 </div>
                 <div class="pane-ticker" id="${paneId}-ticker">
                     <span class="ticker-symbol" id="${paneId}-ticker-sym">${savedSymbol}</span>
