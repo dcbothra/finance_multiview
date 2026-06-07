@@ -199,7 +199,7 @@ function createPanes() {
             layout: {
                 background: { type: "solid", color: "transparent" },
                 textColor: "#94a3b8",
-                fontSize: 11,
+                fontSize: 13,
                 fontFamily: "Outfit, sans-serif"
             },
             grid: {
@@ -663,7 +663,7 @@ function handleTickData(pane, data) {
     if (!pane.currentBar) return;
 
     // Calculate bar start time based on timeframe
-    const barTime = getBarStartTime(tickTime, pane.timeframe);
+    const barTime = getBarStartTime(tickTime, pane.source, pane.timeframe);
     let bar = pane.currentBar;
 
     if (bar.time !== barTime && barTime > bar.time) {
@@ -724,23 +724,62 @@ function handleTickData(pane, data) {
     pane.lastPrice = price;
 }
 
-// Calculate Unix timestamp start based on selected timeframe
-function getBarStartTime(timestampSec, timeframe) {
-    switch (timeframe) {
-        case "1m":
-            return Math.floor(timestampSec / 60) * 60;
-        case "5m":
-            return Math.floor(timestampSec / 300) * 300;
-        case "15m":
-            return Math.floor(timestampSec / 900) * 900;
-        case "1h":
-            return Math.floor(timestampSec / 3600) * 3600;
-        case "1d":
-            // Normalize to UTC midnight
-            return Math.floor(timestampSec / 86400) * 86400;
-        default:
-            return Math.floor(timestampSec / 300) * 300;
+function getActualIntervalSeconds(source, timeframe) {
+    if (source === "hyperliquid") {
+        const hlMap = {
+            '1m': 60,
+            '3m': 180,
+            '5m': 300,
+            '30m': 1800,
+            '1h': 3600,
+            '3h': 14400,    // mapped to 4h
+            '4h': 14400,
+            '6h': 28800,    // mapped to 8h
+            '14h': 43200,   // mapped to 12h
+            '22h': 86400,   // mapped to 1d
+            '1d': 86400,
+            '1w': 604800,
+            '1mo': 2592000
+        };
+        return hlMap[timeframe] || 60;
+    } else {
+        const yfMap = {
+            '1m': 60,
+            '3m': 120,      // mapped to 2m
+            '5m': 300,
+            '30m': 1800,
+            '1h': 3600,
+            '3h': 3600,     // mapped to 1h
+            '4h': 3600,     // mapped to 1h
+            '6h': 3600,     // mapped to 1h
+            '14h': 86400,    // mapped to 1d
+            '22h': 86400,    // mapped to 1d
+            '1d': 86400,
+            '1w': 604800,
+            '1mo': 2592000
+        };
+        return yfMap[timeframe] || 60;
     }
+}
+
+// Calculate Unix timestamp start based on selected source and timeframe
+function getBarStartTime(timestampSec, source, timeframe) {
+    const d = new Date(timestampSec * 1000);
+    
+    if (timeframe === "1w") {
+        const day = d.getUTCDay();
+        const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
+        return Math.floor(monday.getTime() / 1000);
+    }
+    
+    if (timeframe === "1mo" || timeframe === "1month") {
+        const firstOfMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+        return Math.floor(firstOfMonth.getTime() / 1000);
+    }
+    
+    const intervalSec = getActualIntervalSeconds(source, timeframe);
+    return Math.floor(timestampSec / intervalSec) * intervalSec;
 }
 
 // Format prices and update elements
