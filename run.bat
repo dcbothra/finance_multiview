@@ -7,19 +7,19 @@ echo ==================================================
 :: Get current directory (with trailing slash)
 set "CURRENT_DIR=%~dp0"
 
-:: Create Desktop Shortcut if it does not exist yet (handles OneDrive and spaces)
+:: Create Desktop Shortcut if it does not exist yet (handles OneDrive, spaces, and special characters)
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$desktop = [Environment]::GetFolderPath('Desktop'); ^
      $shortcutPath = Join-Path $desktop 'Finance MultiView.lnk'; ^
      if (-not (Test-Path $shortcutPath)) { ^
-         echo 'Creating Desktop Shortcut...'; ^
+         Write-Host 'Creating Desktop Shortcut...'; ^
          $s = (New-Object -COM WScript.Shell).CreateShortcut($shortcutPath); ^
-         $s.TargetPath = '%CURRENT_DIR%run.bat'; ^
-         $s.WorkingDirectory = '%CURRENT_DIR%'; ^
+         $s.TargetPath = Join-Path $env:CURRENT_DIR 'run.bat'; ^
+         $s.WorkingDirectory = $env:CURRENT_DIR; ^
          $s.IconLocation = 'shell32.dll,170'; ^
          $s.Description = 'Launch Finance MultiView Charting Dashboard'; ^
          $s.Save(); ^
-         echo 'Desktop shortcut successfully created!'; ^
+         Write-Host 'Desktop shortcut successfully created!'; ^
      }"
 
 :: Check if Python is installed and fully runnable (prevents Windows Store alias trap)
