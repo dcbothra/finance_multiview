@@ -19,8 +19,9 @@ let activeGridCount = 4;
 // Default configuration presets for symbols
 const PRESETS = {
     hyperliquid: ["BTC", "ETH", "SOL", "ARB", "OP", "SUI", "HYPE", "JUP", "PYTH", "AVAX", "NEAR"],
-    yfinance_us: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "AMD", "META", "GOOGL", "^GSPC", "^IXIC", "EURUSD=X", "GC=F", "SI=F", "HG=F", "CL=F", "NG=F"],
-    yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "^NSEI", "^BSESN", "USDINR=X"]
+    yfinance_us: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "AMD", "META", "GOOGL", "EURUSD=X", "GC=F", "SI=F", "HG=F", "CL=F", "NG=F"],
+    yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "USDINR=X"],
+    yfinance_idx: ["^NSEI", "^BSESN", "^GSPC", "^IXIC"]
 };
 
 const FRIENDLY_NAMES = {
@@ -186,7 +187,11 @@ function createPanes() {
         if (savedSource === "yfinance") {
             savedSource = "yfinance_in";
         }
-        const savedSymbol = localStorage.getItem(`${paneId}_symbol`) || (savedSource === "hyperliquid" ? "BTC" : (savedSource === "yfinance_us" ? "AAPL" : "RELIANCE.NS"));
+        const savedSymbol = localStorage.getItem(`${paneId}_symbol`) || (
+            savedSource === "hyperliquid" ? "BTC" : 
+            (savedSource === "yfinance_us" ? "AAPL" : 
+            (savedSource === "yfinance_idx" ? "^NSEI" : "RELIANCE.NS"))
+        );
         const savedTimeframe = localStorage.getItem(`${paneId}_timeframe`) || "5m";
         const savedIndicator = localStorage.getItem(`${paneId}_indicator`) || "none";
 
@@ -203,6 +208,7 @@ function createPanes() {
                         <option value="hyperliquid" ${savedSource === "hyperliquid" ? "selected" : ""}>Hyperliquid (Crypto)</option>
                         <option value="yfinance_us" ${savedSource === "yfinance_us" ? "selected" : ""}>Yahoo Finance (US Stocks)</option>
                         <option value="yfinance_in" ${savedSource === "yfinance_in" ? "selected" : ""}>Yahoo Finance (India)</option>
+                        <option value="yfinance_idx" ${savedSource === "yfinance_idx" ? "selected" : ""}>Yahoo Finance (Indices)</option>
                     </select>
                     <div class="symbol-input-group">
                         <input type="text" class="symbol-input" data-pane-id="${paneId}" value="${savedSymbol}" placeholder="e.g. AAPL, RELIANCE.NS, ^NSEI">
@@ -372,6 +378,8 @@ function bindPaneEvents(pane) {
             pane.symbol = "BTC";
         } else if (pane.source === "yfinance_us") {
             pane.symbol = "AAPL";
+        } else if (pane.source === "yfinance_idx") {
+            pane.symbol = "^NSEI";
         } else {
             pane.symbol = "RELIANCE.NS";
         }
@@ -564,7 +572,7 @@ function reconnectPane(pane) {
 
 // Send subscribe message to WebSocket server
 function subscribePane(pane) {
-    const backendSource = (pane.source === "yfinance_us" || pane.source === "yfinance_in") ? "yfinance" : pane.source;
+    const backendSource = (pane.source === "yfinance_us" || pane.source === "yfinance_in" || pane.source === "yfinance_idx") ? "yfinance" : pane.source;
     const msg = {
         action: "subscribe",
         pane_id: pane.id,
@@ -839,7 +847,7 @@ function updatePriceDisplay(pane, price) {
     const changeEl = document.getElementById(`${pane.id}-ticker-change`);
 
     // Format price
-    const prefix = pane.source === "yfinance_in" ? "₹" : "$";
+    const prefix = pane.source === "yfinance_in" ? "₹" : (pane.source === "yfinance_idx" ? "" : "$");
     const decimals = price < 1 ? 4 : 2;
     priceEl.innerText = prefix + price.toLocaleString(undefined, {
         minimumFractionDigits: decimals,
