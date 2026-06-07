@@ -23,6 +23,57 @@ const PRESETS = {
     yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "^NSEI", "^BSESN", "USDINR=X"]
 };
 
+const FRIENDLY_NAMES = {
+    // Indices
+    "^NSEI": "NIFTY 50",
+    "^BSESN": "SENSEX",
+    "^GSPC": "S&P 500",
+    "^IXIC": "NASDAQ",
+    
+    // Commodities
+    "GC=F": "Gold Futures",
+    "SI=F": "Silver Futures",
+    "HG=F": "Copper Futures",
+    "CL=F": "Crude Oil Futures",
+    "NG=F": "Natural Gas Futures",
+    
+    // Forex
+    "EURUSD=X": "EUR/USD",
+    "USDINR=X": "USD/INR",
+    
+    // Crypto
+    "BTC": "Bitcoin (BTC)",
+    "ETH": "Ethereum (ETH)",
+    "SOL": "Solana (SOL)",
+    "ARB": "Arbitrum (ARB)",
+    "OP": "Optimism (OP)",
+    "SUI": "Sui (SUI)",
+    "HYPE": "Hyperliquid (HYPE)",
+    "JUP": "Jupiter (JUP)",
+    "PYTH": "Pyth Network (PYTH)",
+    "AVAX": "Avalanche (AVAX)",
+    "NEAR": "Near Protocol (NEAR)",
+    
+    // US Stocks
+    "AAPL": "Apple Inc. (AAPL)",
+    "MSFT": "Microsoft (MSFT)",
+    "NVDA": "NVIDIA (NVDA)",
+    "TSLA": "Tesla (TSLA)",
+    "AMZN": "Amazon (AMZN)",
+    "AMD": "AMD (AMD)",
+    "META": "Meta Platforms (META)",
+    "GOOGL": "Alphabet (GOOGL)",
+    
+    // Indian Stocks
+    "RELIANCE.NS": "Reliance Industries",
+    "TCS.NS": "TCS",
+    "INFY.NS": "Infosys",
+    "HDFCBANK.NS": "HDFC Bank",
+    "ICICIBANK.NS": "ICICI Bank",
+    "TATAMOTORS.NS": "Tata Motors",
+    "SBIN.NS": "SBI"
+};
+
 function generateIndicatorDropdownHTML(paneId, savedIndicatorsStr) {
     const saved = (savedIndicatorsStr || "none").split(",");
     const isChecked = (val) => saved.includes(val) ? "checked" : "";
@@ -303,7 +354,7 @@ function populatePresets(pane) {
     const list = PRESETS[pane.source] || [];
     
     presetsSelect.innerHTML = `<option value="">Presets...</option>` + 
-        list.map(sym => `<option value="${sym}">${sym}</option>`).join("");
+        list.map(sym => `<option value="${sym}">${FRIENDLY_NAMES[sym] || sym}</option>`).join("");
 }
 
 // Bind input and dropdown event listeners on the card
