@@ -110,6 +110,9 @@ function createPanes() {
                         <option value="ema50" ${savedIndicator === "ema50" ? "selected" : ""}>EMA 50</option>
                         <option value="sma100" ${savedIndicator === "sma100" ? "selected" : ""}>SMA 100</option>
                         <option value="ema100" ${savedIndicator === "ema100" ? "selected" : ""}>EMA 100</option>
+                        <option value="wma20" ${savedIndicator === "wma20" ? "selected" : ""}>WMA 20</option>
+                        <option value="hma20" ${savedIndicator === "hma20" ? "selected" : ""}>HMA 20</option>
+                        <option value="vwap" ${savedIndicator === "vwap" ? "selected" : ""}>VWAP</option>
                         <option value="bb" ${savedIndicator === "bb" ? "selected" : ""}>Bollinger Bands (20, 2)</option>
                     </select>
                 </div>
@@ -756,6 +759,94 @@ function calculateBollingerBands(data, period, stdDevMultiplier) {
     return { middle, upper, lower };
 }
 
+function calculateWMA(data, period) {
+    const wma = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) continue;
+        let sum = 0;
+        let weightSum = 0;
+        for (let j = 0; j < period; j++) {
+            const weight = period - j;
+            // Support both bar objects (.close) and raw number arrays (.value or raw numbers)
+            const price = data[i - j].close !== undefined ? data[i - j].close : data[i - j].value;
+            sum += price * weight;
+            weightSum += weight;
+        }
+        wma.push({
+            time: data[i].time,
+            value: sum / weightSum
+        });
+    }
+    return wma;
+}
+
+function calculateHMA(data, period) {
+    if (data.length < period) return [];
+    
+    const halfPeriod = Math.floor(period / 2);
+    const sqrtPeriod = Math.floor(Math.sqrt(period));
+    
+    // 1. Calculate WMA(period/2) and WMA(period)
+    const wmaHalf = calculateWMA(data, halfPeriod);
+    const wmaFull = calculateWMA(data, period);
+    
+    // Map them by time
+    const wmaHalfMap = {};
+    wmaHalf.forEach(x => wmaHalfMap[x.time] = x.value);
+    
+    const wmaFullMap = {};
+    wmaFull.forEach(x => wmaFullMap[x.time] = x.value);
+    
+    // 2. Raw HMA = 2 * WMA(n/2) - WMA(n)
+    const rawHma = [];
+    for (let i = 0; i < data.length; i++) {
+        const t = data[i].time;
+        if (wmaHalfMap[t] !== undefined && wmaFullMap[t] !== undefined) {
+            rawHma.push({
+                time: t,
+                value: 2 * wmaHalfMap[t] - wmaFullMap[t] // stored under 'value' for WMA input format compatibility
+            });
+        }
+    }
+    
+    // 3. HMA = WMA(sqrt(n)) of rawHma
+    const hmaResult = calculateWMA(rawHma, sqrtPeriod);
+    return hmaResult;
+}
+
+function calculateVWAP(data) {
+    const vwap = [];
+    let cumulativePV = 0;
+    let cumulativeVolume = 0;
+    let currentDayStr = "";
+    
+    for (let i = 0; i < data.length; i++) {
+        const bar = data[i];
+        const typicalPrice = (bar.high + bar.low + bar.close) / 3;
+        const volume = bar.volume || 0;
+        
+        // Detect daily boundary to reset cumulative statistics
+        const date = new Date(bar.time * 1000);
+        const dayStr = date.getUTCFullYear() + "-" + date.getUTCMonth() + "-" + date.getUTCDate();
+        
+        if (dayStr !== currentDayStr) {
+            cumulativePV = 0;
+            cumulativeVolume = 0;
+            currentDayStr = dayStr;
+        }
+        
+        cumulativePV += typicalPrice * volume;
+        cumulativeVolume += volume;
+        
+        const value = cumulativeVolume > 0 ? (cumulativePV / cumulativeVolume) : typicalPrice;
+        vwap.push({
+            time: bar.time,
+            value: value
+        });
+    }
+    return vwap;
+}
+
 // Core Technical Indicator Renderer
 function updateIndicator(pane) {
     if (!pane.indicatorSeries || !pane.upperIndicatorSeries || !pane.lowerIndicatorSeries) return;
@@ -790,6 +881,15 @@ function updateIndicator(pane) {
     } else if (type === "ema100") {
         pane.indicatorSeries.applyOptions({ color: "#ec4899" }); // Pink
         pane.indicatorSeries.setData(calculateEMA(pane.candles, 100));
+    } else if (type === "wma20") {
+        pane.indicatorSeries.applyOptions({ color: "#f97316" }); // Orange
+        pane.indicatorSeries.setData(calculateWMA(pane.candles, 20));
+    } else if (type === "hma20") {
+        pane.indicatorSeries.applyOptions({ color: "#06b6d4" }); // Cyan
+        pane.indicatorSeries.setData(calculateHMA(pane.candles, 20));
+    } else if (type === "vwap") {
+        pane.indicatorSeries.applyOptions({ color: "#eab308" }); // Yellow
+        pane.indicatorSeries.setData(calculateVWAP(pane.candles));
     } else if (type === "bb") {
         pane.indicatorSeries.applyOptions({ color: "rgba(255, 255, 255, 0.4)" }); // Semi-transparent white for Middle Band
         const bb = calculateBollingerBands(pane.candles, 20, 2);
