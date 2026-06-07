@@ -126,6 +126,8 @@ function createPanes() {
                         <option value="fvg" ${savedIndicator === "fvg" ? "selected" : ""}>Fair Value Gap (FVG)</option>
                         <option value="vp" ${savedIndicator === "vp" ? "selected" : ""}>Volume Profile (POC/VA)</option>
                         <option value="bb" ${savedIndicator === "bb" ? "selected" : ""}>Bollinger Bands (20, 2)</option>
+                        <option value="bharat_edge" ${savedIndicator === "bharat_edge" ? "selected" : ""}>Bharat Smart Edge (RSI 60/40)</option>
+                        <option value="devendra_renko" ${savedIndicator === "devendra_renko" ? "selected" : ""}>Dr. Devendra Smart Renko Engine (with Targets)</option>
                     </select>
                 </div>
                 <div class="pane-ticker" id="${paneId}-ticker">
@@ -1163,9 +1165,13 @@ function updateIndicator(pane) {
         pane.candleSeries.removePriceLine(pane.valLine);
         pane.valLine = null;
     }
+    if (pane.renkoSL) {
+        pane.candleSeries.removePriceLine(pane.renkoSL);
+        pane.renkoSL = null;
+    }
     
     // Default show/hide left-axis price scale
-    const isLeftScale = ["rsi", "obv"].includes(type);
+    const isLeftScale = ["rsi", "obv", "bharat_edge"].includes(type);
     pane.chart.priceScale("left").applyOptions({
         visible: isLeftScale
     });
@@ -1297,4 +1303,153 @@ function updateIndicator(pane) {
         pane.upperIndicatorSeries.setData(bb.upper);
         pane.lowerIndicatorSeries.setData(bb.lower);
     }
+
+    // 9. Bharat Smart Edge (RSI Range Shift 60/40)
+    else if (type === "bharat_edge") {
+        pane.leftIndicatorSeries.applyOptions({ color: "#22c55e" }); // green line for RSI
+        pane.leftIndicatorSeries.setData(calculateRSI(pane.candles, 14));
+        
+        pane.vahLine = pane.leftIndicatorSeries.createPriceLine({
+            price: 60,
+            color: "rgba(16, 185, 129, 0.4)", // green upper edge
+            lineWidth: 1.5,
+            lineStyle: 2, // Dashed
+            axisLabelVisible: true,
+            title: "Bullish Edge (60)"
+        });
+        pane.valLine = pane.leftIndicatorSeries.createPriceLine({
+            price: 40,
+            color: "rgba(244, 63, 94, 0.4)", // red lower edge
+            lineWidth: 1.5,
+            lineStyle: 2, // Dashed
+            axisLabelVisible: true,
+            title: "Bearish Edge (40)"
+        });
+    }
+
+    // 10. Dr. Devendra Smart Renko Engine (with targets & non-repainting buy/sell signals)
+    else if (type === "devendra_renko") {
+        const renko = calculateRenkoTargets(pane.candles);
+        if (renko) {
+            // Plot Buy/Sell signals as markers on the candles
+            const markers = renko.signals.map(sig => ({
+                time: sig.time,
+                position: sig.type === "BUY" ? "belowBar" : "aboveBar",
+                color: sig.type === "BUY" ? "#10b981" : "#f43f5e",
+                shape: sig.type === "BUY" ? "arrowUp" : "arrowDown",
+                text: `${sig.type} (Renko)`
+            }));
+            pane.candleSeries.setMarkers(markers);
+            
+            // Plot Targets
+            pane.valLine = pane.candleSeries.createPriceLine({
+                price: renko.target1,
+                color: "#10b981",
+                lineWidth: 1.5,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: `Target 1 (${renko.latestSignal.type === "BUY" ? "UP" : "DOWN"})`
+            });
+            pane.vahLine = pane.candleSeries.createPriceLine({
+                price: renko.target2,
+                color: "#059669",
+                lineWidth: 1.5,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: "Target 2"
+            });
+            pane.pocLine = pane.candleSeries.createPriceLine({
+                price: renko.target3,
+                color: "#047857",
+                lineWidth: 2,
+                lineStyle: 0,
+                axisLabelVisible: true,
+                title: "Target 3"
+            });
+            pane.renkoSL = pane.candleSeries.createPriceLine({
+                price: renko.stopLoss,
+                color: "#ef4444",
+                lineWidth: 2,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: "Stop Loss"
+            });
+        }
+    }
+}
+
+function calculateRenkoTargets(data) {
+    if (data.length < 20) return null;
+    
+    // 1. Calculate ATR for brick size calculation
+    const tr = [];
+    for (let i = 1; i < data.length; i++) {
+        tr.push(Math.max(
+            data[i].high - data[i].low,
+            Math.abs(data[i].high - data[i - 1].close),
+            Math.abs(data[i].low - data[i - 1].close)
+        ));
+    }
+    let atrSum = 0;
+    for (let i = 0; i < 14; i++) atrSum += tr[tr.length - 1 - i];
+    const brickSize = atrSum / 14;
+    if (brickSize === 0) return null;
+    
+    // 2. Generate Renko bricks in memory
+    const bricks = [];
+    let prevBrickClose = data[0].close;
+    
+    for (let i = 1; i < data.length; i++) {
+        const close = data[i].close;
+        const diff = close - prevBrickClose;
+        const numBricks = Math.floor(Math.abs(diff) / brickSize);
+        
+        if (numBricks > 0) {
+            const direction = diff > 0 ? 1 : -1;
+            for (let j = 0; j < numBricks; j++) {
+                const brickOpen = prevBrickClose;
+                const brickClose = prevBrickClose + direction * brickSize;
+                bricks.push({
+                    time: data[i].time,
+                    open: brickOpen,
+                    close: brickClose,
+                    direction: direction
+                });
+                prevBrickClose = brickClose;
+            }
+        }
+    }
+    
+    // 3. Scan bricks for buy/sell flips
+    const signals = [];
+    for (let i = 1; i < bricks.length; i++) {
+        if (bricks[i].direction === 1 && bricks[i - 1].direction === -1) {
+            signals.push({ time: bricks[i].time, type: "BUY", price: bricks[i].close });
+        } else if (bricks[i].direction === -1 && bricks[i - 1].direction === 1) {
+            signals.push({ time: bricks[i].time, type: "SELL", price: bricks[i].close });
+        }
+    }
+    
+    if (signals.length === 0) return null;
+    
+    const latestSignal = signals[signals.length - 1];
+    const entry = latestSignal.price;
+    const isBuy = latestSignal.type === "BUY";
+    
+    // 4. Calculate targets
+    const target1 = isBuy ? (entry + brickSize * 1.5) : (entry - brickSize * 1.5);
+    const target2 = isBuy ? (entry + brickSize * 3) : (entry - brickSize * 3);
+    const target3 = isBuy ? (entry + brickSize * 4.5) : (entry - brickSize * 4.5);
+    const stopLoss = isBuy ? (entry - brickSize * 1.5) : (entry + brickSize * 1.5);
+    
+    return {
+        latestSignal,
+        entry,
+        target1,
+        target2,
+        target3,
+        stopLoss,
+        signals,
+        brickSize
+    };
 }
