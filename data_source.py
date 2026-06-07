@@ -233,24 +233,36 @@ class HyperliquidDataSource(BaseDataSource):
 
     def fetch_history(self, symbol: str, timeframe: str) -> list:
         symbol = symbol.strip().upper()
-        interval = timeframe
-        if timeframe not in ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d', '3d', '1w', '1M']:
-            interval = '1m'
+        
+        # Map frontend timeframes to Hyperliquid native intervals
+        hl_map = {
+            '1m': '1m',
+            '3m': '3m',
+            '5m': '5m',
+            '30m': '30m',
+            '1h': '1h',
+            '3h': '4h',   # Map 3h to 4h
+            '4h': '4h',
+            '6h': '8h',   # Map 6h to 8h
+            '14h': '12h', # Map 14h to 12h
+            '22h': '1d',  # Map 22h to 1d
+            '1d': '1d',
+            '1w': '1w',
+            '1mo': '1M'
+        }
+        interval = hl_map.get(timeframe, '1m')
         
         # Complete multipliers registry for all supported Hyperliquid intervals
         multipliers = {
             '1m': 1 * 60 * 1000,
             '3m': 3 * 60 * 1000,
             '5m': 5 * 60 * 1000,
-            '15m': 15 * 60 * 1000,
             '30m': 30 * 60 * 1000,
             '1h': 60 * 60 * 1000,
-            '2h': 2 * 60 * 60 * 1000,
             '4h': 4 * 60 * 60 * 1000,
             '8h': 8 * 60 * 60 * 1000,
             '12h': 12 * 60 * 60 * 1000,
             '1d': 24 * 60 * 60 * 1000,
-            '3d': 3 * 24 * 60 * 60 * 1000,
             '1w': 7 * 24 * 60 * 60 * 1000,
             '1M': 30 * 24 * 60 * 60 * 1000,
         }
@@ -307,25 +319,23 @@ class YFinanceDataSource(BaseDataSource):
 
     def fetch_history(self, symbol: str, timeframe: str) -> list:
         symbol = symbol.strip().upper()
-        # Map timeframe to period and interval for yfinance
-        if timeframe == '1m':
-            period = '1d'
-            interval = '1m'
-        elif timeframe == '5m':
-            period = '5d'
-            interval = '5m'
-        elif timeframe == '15m':
-            period = '5d'
-            interval = '15m'
-        elif timeframe == '1h':
-            period = '1mo'
-            interval = '1h'
-        elif timeframe == '1d':
-            period = '1y'
-            interval = '1d'
-        else:
-            period = '1mo'
-            interval = '1h'
+        # Map frontend timeframe to (period, interval) for yfinance
+        yf_map = {
+            '1m': ('7d', '1m'),
+            '3m': ('7d', '2m'),     # Map 3m to 2m
+            '5m': ('60d', '5m'),    # 5m data can go up to 60 days
+            '30m': ('60d', '30m'),  # 30m data can go up to 60 days
+            '1h': ('730d', '1h'),   # 1h data can go up to 730 days
+            '3h': ('730d', '1h'),   # Map 3h to 1h
+            '4h': ('730d', '1h'),   # Map 4h to 1h
+            '6h': ('730d', '1h'),   # Map 6h to 1h
+            '14h': ('5y', '1d'),    # Map 14h to 1d
+            '22h': ('5y', '1d'),    # Map 22h to 1d
+            '1d': ('5y', '1d'),
+            '1w': ('max', '1wk'),
+            '1mo': ('max', '1mo')
+        }
+        period, interval = yf_map.get(timeframe, ('60d', '1h'))
 
         try:
             ticker = yf.Ticker(symbol)

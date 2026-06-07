@@ -19,7 +19,7 @@ let activeGridCount = 4;
 // Default configuration presets for symbols
 const PRESETS = {
     hyperliquid: ["BTC", "ETH", "SOL", "ARB", "OP", "SUI", "HYPE", "JUP", "PYTH", "AVAX", "NEAR"],
-    yfinance_us: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "AMD", "META", "GOOGL", "^GSPC", "^IXIC", "EURUSD=X", "GC=F"],
+    yfinance_us: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "AMD", "META", "GOOGL", "^GSPC", "^IXIC", "EURUSD=X", "GC=F", "SI=F", "HG=F", "CL=F", "NG=F"],
     yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "^NSEI", "^BSESN", "USDINR=X"]
 };
 
@@ -89,10 +89,18 @@ function createPanes() {
                     </div>
                     <select class="timeframe-select" data-pane-id="${paneId}">
                         <option value="1m" ${savedTimeframe === "1m" ? "selected" : ""}>1m</option>
+                        <option value="3m" ${savedTimeframe === "3m" ? "selected" : ""}>3m</option>
                         <option value="5m" ${savedTimeframe === "5m" ? "selected" : ""}>5m</option>
-                        <option value="15m" ${savedTimeframe === "15m" ? "selected" : ""}>15m</option>
+                        <option value="30m" ${savedTimeframe === "30m" ? "selected" : ""}>30m</option>
                         <option value="1h" ${savedTimeframe === "1h" ? "selected" : ""}>1h</option>
+                        <option value="3h" ${savedTimeframe === "3h" ? "selected" : ""}>3h</option>
+                        <option value="4h" ${savedTimeframe === "4h" ? "selected" : ""}>4h</option>
+                        <option value="6h" ${savedTimeframe === "6h" ? "selected" : ""}>6h</option>
+                        <option value="14h" ${savedTimeframe === "14h" ? "selected" : ""}>14h</option>
+                        <option value="22h" ${savedTimeframe === "22h" ? "selected" : ""}>22h</option>
                         <option value="1d" ${savedTimeframe === "1d" ? "selected" : ""}>1d</option>
+                        <option value="1w" ${savedTimeframe === "1w" ? "selected" : ""}>1w</option>
+                        <option value="1mo" ${savedTimeframe === "1mo" ? "selected" : ""}>1mo</option>
                     </select>
                     <select class="indicator-select" data-pane-id="${paneId}">
                         <option value="none" ${savedIndicator === "none" ? "selected" : ""}>INDICATORS</option>
@@ -100,6 +108,9 @@ function createPanes() {
                         <option value="ema20" ${savedIndicator === "ema20" ? "selected" : ""}>EMA 20</option>
                         <option value="sma50" ${savedIndicator === "sma50" ? "selected" : ""}>SMA 50</option>
                         <option value="ema50" ${savedIndicator === "ema50" ? "selected" : ""}>EMA 50</option>
+                        <option value="sma100" ${savedIndicator === "sma100" ? "selected" : ""}>SMA 100</option>
+                        <option value="ema100" ${savedIndicator === "ema100" ? "selected" : ""}>EMA 100</option>
+                        <option value="bb" ${savedIndicator === "bb" ? "selected" : ""}>Bollinger Bands (20, 2)</option>
                     </select>
                 </div>
                 <div class="pane-ticker" id="${paneId}-ticker">
@@ -185,6 +196,22 @@ function createPanes() {
             lastValueVisible: false
         });
 
+        const upperIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
+            color: "rgba(56, 189, 248, 0.4)",
+            lineWidth: 1.5,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            lineStyle: 2 // Dashed
+        });
+
+        const lowerIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
+            color: "rgba(56, 189, 248, 0.4)",
+            lineWidth: 1.5,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            lineStyle: 2 // Dashed
+        });
+
         // Store pane reference
         const paneObj = {
             id: paneId,
@@ -194,6 +221,8 @@ function createPanes() {
             candleSeries: candleSeries,
             volumeSeries: volumeSeries,
             indicatorSeries: indicatorSeries,
+            upperIndicatorSeries: upperIndicatorSeries,
+            lowerIndicatorSeries: lowerIndicatorSeries,
             source: savedSource,
             symbol: savedSymbol,
             timeframe: savedTimeframe,
@@ -655,7 +684,7 @@ function calculateSMA(data, period) {
     const sma = [];
     for (let i = 0; i < data.length; i++) {
         if (i < period - 1) {
-            continue; // Not enough data
+            continue;
         }
         let sum = 0;
         for (let j = 0; j < period; j++) {
@@ -696,32 +725,76 @@ function calculateEMA(data, period) {
     return ema;
 }
 
+function calculateBollingerBands(data, period, stdDevMultiplier) {
+    const middle = [];
+    const upper = [];
+    const lower = [];
+    
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            continue;
+        }
+        
+        let sum = 0;
+        for (let j = 0; j < period; j++) {
+            sum += data[i - j].close;
+        }
+        const avg = sum / period;
+        
+        let varianceSum = 0;
+        for (let j = 0; j < period; j++) {
+            varianceSum += Math.pow(data[i - j].close - avg, 2);
+        }
+        const stdDev = Math.sqrt(varianceSum / period);
+        
+        const time = data[i].time;
+        middle.push({ time, value: avg });
+        upper.push({ time, value: avg + stdDevMultiplier * stdDev });
+        lower.push({ time, value: avg - stdDevMultiplier * stdDev });
+    }
+    
+    return { middle, upper, lower };
+}
+
 // Core Technical Indicator Renderer
 function updateIndicator(pane) {
-    if (!pane.indicatorSeries) return;
+    if (!pane.indicatorSeries || !pane.upperIndicatorSeries || !pane.lowerIndicatorSeries) return;
     
     const selectEl = pane.element.querySelector(".indicator-select");
     const type = selectEl ? selectEl.value : "none";
     
+    // Reset all lines first
+    pane.indicatorSeries.setData([]);
+    pane.upperIndicatorSeries.setData([]);
+    pane.lowerIndicatorSeries.setData([]);
+    
     if (type === "none" || !pane.candles || pane.candles.length === 0) {
-        pane.indicatorSeries.setData([]);
         return;
     }
     
-    let indicatorData = [];
     if (type === "sma20") {
         pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
-        indicatorData = calculateSMA(pane.candles, 20);
+        pane.indicatorSeries.setData(calculateSMA(pane.candles, 20));
     } else if (type === "ema20") {
         pane.indicatorSeries.applyOptions({ color: "#10b981" }); // Emerald green
-        indicatorData = calculateEMA(pane.candles, 20);
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 20));
     } else if (type === "sma50") {
         pane.indicatorSeries.applyOptions({ color: "#fbbf24" }); // Amber yellow
-        indicatorData = calculateSMA(pane.candles, 50);
+        pane.indicatorSeries.setData(calculateSMA(pane.candles, 50));
     } else if (type === "ema50") {
         pane.indicatorSeries.applyOptions({ color: "#f43f5e" }); // Rose red
-        indicatorData = calculateEMA(pane.candles, 50);
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 50));
+    } else if (type === "sma100") {
+        pane.indicatorSeries.applyOptions({ color: "#a855f7" }); // Purple
+        pane.indicatorSeries.setData(calculateSMA(pane.candles, 100));
+    } else if (type === "ema100") {
+        pane.indicatorSeries.applyOptions({ color: "#ec4899" }); // Pink
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 100));
+    } else if (type === "bb") {
+        pane.indicatorSeries.applyOptions({ color: "rgba(255, 255, 255, 0.4)" }); // Semi-transparent white for Middle Band
+        const bb = calculateBollingerBands(pane.candles, 20, 2);
+        pane.indicatorSeries.setData(bb.middle);
+        pane.upperIndicatorSeries.setData(bb.upper);
+        pane.lowerIndicatorSeries.setData(bb.lower);
     }
-    
-    pane.indicatorSeries.setData(indicatorData);
 }
