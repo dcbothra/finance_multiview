@@ -23,6 +23,69 @@ const PRESETS = {
     yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "^NSEI", "^BSESN", "USDINR=X"]
 };
 
+function generateIndicatorDropdownHTML(paneId, savedIndicatorsStr) {
+    const saved = (savedIndicatorsStr || "none").split(",");
+    const isChecked = (val) => saved.includes(val) ? "checked" : "";
+    
+    const options = [
+        { value: "ema9", label: "EMA 9" },
+        { value: "ema10", label: "EMA 10" },
+        { value: "ema20", label: "EMA 20" },
+        { value: "ema30", label: "EMA 30" },
+        { value: "ema50", label: "EMA 50" },
+        { value: "ema100", label: "EMA 100" },
+        { value: "ema200", label: "EMA 200" },
+        { type: "divider" },
+        { value: "sma20", label: "SMA 20" },
+        { value: "sma50", label: "SMA 50" },
+        { value: "sma100", label: "SMA 100" },
+        { value: "sma200", label: "SMA 200" },
+        { type: "divider" },
+        { value: "vwap", label: "VWAP" },
+        { value: "wma20", label: "WMA 20" },
+        { value: "hma20", label: "HMA 20" },
+        { type: "divider" },
+        { value: "st_10_1", label: "Supertrend 10,1" },
+        { value: "st_10_2", label: "Supertrend 10,2" },
+        { value: "st_10_3", label: "Supertrend 10,3" },
+        { type: "divider" },
+        { value: "rsi", label: "RSI 14" },
+        { value: "obv", label: "On Balance Volume (OBV)" },
+        { value: "bharat_edge", label: "Bharat Smart Edge (RSI 60/40)" },
+        { type: "divider" },
+        { value: "fvg", label: "Fair Value Gap (FVG)" },
+        { value: "vp", label: "Volume Profile (POC/VA)" },
+        { value: "devendra_renko", label: "Dr. Devendra Smart Renko Engine" },
+        { value: "bb", label: "Bollinger Bands (20, 2)" }
+    ];
+    
+    const activeCount = saved.filter(x => x !== "none" && x !== "").length;
+    
+    let html = `
+    <div class="indicator-dropdown" data-pane-id="${paneId}">
+        <button class="indicator-dropdown-btn">
+            Indicators <span class="badge" id="${paneId}-indicator-badge">${activeCount}</span>
+        </button>
+        <div class="indicator-dropdown-menu">
+            <label class="clear-all-btn"><input type="checkbox" value="none" ${saved.includes("none") ? "checked" : ""}> None / Clear All</label>
+            <div class="divider"></div>
+    `;
+    
+    options.forEach(opt => {
+        if (opt.type === "divider") {
+            html += `<div class="divider"></div>`;
+        } else {
+            html += `<label><input type="checkbox" value="${opt.value}" ${isChecked(opt.value)}> ${opt.label}</label>`;
+        }
+    });
+    
+    html += `
+        </div>
+    </div>
+    `;
+    return html;
+}
+
 // Initialize the application on DOM load
 window.addEventListener("DOMContentLoaded", () => {
     // 1. Restore grid layout selection from localStorage
@@ -47,6 +110,15 @@ window.addEventListener("DOMContentLoaded", () => {
         
         const count = parseInt(btn.dataset.count, 10);
         changeGridLayout(count);
+    });
+
+    // 5. Global listener to close dropdowns on click outside
+    document.addEventListener("click", (e) => {
+        document.querySelectorAll(".indicator-dropdown-menu").forEach(menu => {
+            if (!menu.closest(".indicator-dropdown").contains(e.target)) {
+                menu.classList.remove("show");
+            }
+        });
     });
 });
 
@@ -102,33 +174,7 @@ function createPanes() {
                         <option value="1w" ${savedTimeframe === "1w" ? "selected" : ""}>1w</option>
                         <option value="1mo" ${savedTimeframe === "1mo" ? "selected" : ""}>1mo</option>
                     </select>
-                    <select class="indicator-select" data-pane-id="${paneId}">
-                        <option value="none" ${savedIndicator === "none" ? "selected" : ""}>INDICATORS</option>
-                        <option value="ema9" ${savedIndicator === "ema9" ? "selected" : ""}>EMA 9</option>
-                        <option value="ema10" ${savedIndicator === "ema10" ? "selected" : ""}>EMA 10</option>
-                        <option value="ema20" ${savedIndicator === "ema20" ? "selected" : ""}>EMA 20</option>
-                        <option value="ema30" ${savedIndicator === "ema30" ? "selected" : ""}>EMA 30</option>
-                        <option value="ema50" ${savedIndicator === "ema50" ? "selected" : ""}>EMA 50</option>
-                        <option value="ema100" ${savedIndicator === "ema100" ? "selected" : ""}>EMA 100</option>
-                        <option value="ema200" ${savedIndicator === "ema200" ? "selected" : ""}>EMA 200</option>
-                        <option value="sma20" ${savedIndicator === "sma20" ? "selected" : ""}>SMA 20</option>
-                        <option value="sma50" ${savedIndicator === "sma50" ? "selected" : ""}>SMA 50</option>
-                        <option value="sma100" ${savedIndicator === "sma100" ? "selected" : ""}>SMA 100</option>
-                        <option value="sma200" ${savedIndicator === "sma200" ? "selected" : ""}>SMA 200</option>
-                        <option value="vwap" ${savedIndicator === "vwap" ? "selected" : ""}>VWAP</option>
-                        <option value="wma20" ${savedIndicator === "wma20" ? "selected" : ""}>WMA 20</option>
-                        <option value="hma20" ${savedIndicator === "hma20" ? "selected" : ""}>HMA 20</option>
-                        <option value="st_10_1" ${savedIndicator === "st_10_1" ? "selected" : ""}>Supertrend 10,1</option>
-                        <option value="st_10_2" ${savedIndicator === "st_10_2" ? "selected" : ""}>Supertrend 10,2</option>
-                        <option value="st_10_3" ${savedIndicator === "st_10_3" ? "selected" : ""}>Supertrend 10,3</option>
-                        <option value="rsi" ${savedIndicator === "rsi" ? "selected" : ""}>RSI 14</option>
-                        <option value="obv" ${savedIndicator === "obv" ? "selected" : ""}>On Balance Volume (OBV)</option>
-                        <option value="fvg" ${savedIndicator === "fvg" ? "selected" : ""}>Fair Value Gap (FVG)</option>
-                        <option value="vp" ${savedIndicator === "vp" ? "selected" : ""}>Volume Profile (POC/VA)</option>
-                        <option value="bb" ${savedIndicator === "bb" ? "selected" : ""}>Bollinger Bands (20, 2)</option>
-                        <option value="bharat_edge" ${savedIndicator === "bharat_edge" ? "selected" : ""}>Bharat Smart Edge (RSI 60/40)</option>
-                        <option value="devendra_renko" ${savedIndicator === "devendra_renko" ? "selected" : ""}>Dr. Devendra Smart Renko Engine (with Targets)</option>
-                    </select>
+                    \${generateIndicatorDropdownHTML(paneId, savedIndicator)}
                 </div>
                 <div class="pane-ticker" id="${paneId}-ticker">
                     <span class="ticker-symbol" id="${paneId}-ticker-sym">${savedSymbol}</span>
@@ -206,42 +252,6 @@ function createPanes() {
             }
         });
 
-        const indicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
-            color: "#10b981",
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false
-        });
-
-        const upperIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
-            color: "rgba(56, 189, 248, 0.4)",
-            lineWidth: 1.5,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            lineStyle: 2 // Dashed
-        });
-
-        const lowerIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
-            color: "rgba(56, 189, 248, 0.4)",
-            lineWidth: 1.5,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            lineStyle: 2 // Dashed
-        });
-
-        const leftIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
-            priceScaleId: "left",
-            color: "#eab308", // gold for left-axis indicator
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false
-        });
-
-        // Hide left scale initially
-        chart.priceScale("left").applyOptions({
-            visible: false
-        });
-
         // Store pane reference
         const paneObj = {
             id: paneId,
@@ -250,13 +260,8 @@ function createPanes() {
             chart: chart,
             candleSeries: candleSeries,
             volumeSeries: volumeSeries,
-            indicatorSeries: indicatorSeries,
-            upperIndicatorSeries: upperIndicatorSeries,
-            lowerIndicatorSeries: lowerIndicatorSeries,
-            leftIndicatorSeries: leftIndicatorSeries,
-            pocLine: null,
-            vahLine: null,
-            valLine: null,
+            dynamicSeries: {},
+            priceLines: [],
             source: savedSource,
             symbol: savedSymbol,
             timeframe: savedTimeframe,
@@ -307,7 +312,6 @@ function bindPaneEvents(pane) {
     const symbolInp = pane.element.querySelector(".symbol-input");
     const presetsSel = pane.element.querySelector(".presets-select");
     const timeframeSel = pane.element.querySelector(".timeframe-select");
-    const indicatorSel = pane.element.querySelector(".indicator-select");
 
     // Source change handler
     sourceSel.addEventListener("change", (e) => {
@@ -365,10 +369,65 @@ function bindPaneEvents(pane) {
         reconnectPane(pane);
     });
 
-    // Indicator dropdown selection handler
-    indicatorSel.addEventListener("change", (e) => {
-        localStorage.setItem(`${pane.id}_indicator`, e.target.value);
-        updateIndicator(pane);
+    // Indicator dropdown select handlers
+    const dropdown = pane.element.querySelector(".indicator-dropdown");
+    const btn = dropdown.querySelector(".indicator-dropdown-btn");
+    const menu = dropdown.querySelector(".indicator-dropdown-menu");
+    const checkboxes = menu.querySelectorAll("input[type='checkbox']");
+    const badge = dropdown.querySelector(".badge");
+    
+    btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        // Close other menus first
+        document.querySelectorAll(".indicator-dropdown-menu").forEach(otherMenu => {
+            if (otherMenu !== menu) otherMenu.classList.remove("show");
+        });
+        menu.classList.toggle("show");
+    });
+    
+    menu.addEventListener("click", (e) => {
+        e.stopPropagation();
+    });
+    
+    checkboxes.forEach(cb => {
+        cb.addEventListener("change", (e) => {
+            let active = [];
+            const val = e.target.value;
+            
+            if (val === "none") {
+                if (e.target.checked) {
+                    checkboxes.forEach(c => {
+                        if (c.value !== "none") c.checked = false;
+                    });
+                    active = ["none"];
+                } else {
+                    e.target.checked = true; // force at least "none"
+                    active = ["none"];
+                }
+            } else {
+                const noneCb = menu.querySelector("input[value='none']");
+                if (noneCb) noneCb.checked = false;
+                
+                checkboxes.forEach(c => {
+                    if (c.checked && c.value !== "none") {
+                        active.push(c.value);
+                    }
+                });
+                
+                if (active.length === 0) {
+                    if (noneCb) noneCb.checked = true;
+                    active = ["none"];
+                }
+            }
+            
+            const activeStr = active.join(",");
+            localStorage.setItem(`${pane.id}_indicator`, activeStr);
+            
+            const count = active.filter(x => x !== "none").length;
+            badge.textContent = count;
+            
+            updateIndicator(pane);
+        });
     });
 }
 
@@ -1139,242 +1198,275 @@ function calculateVolumeProfile(data) {
     return { pocPrice, valPrice, vahPrice };
 }
 
-// Core Technical Indicator Renderer
+// Dynamic Series and Helper Registries
+function getOrCreateSeries(pane, key, color, priceScaleId = "right", options = {}) {
+    if (!pane.dynamicSeries) pane.dynamicSeries = {};
+    if (pane.dynamicSeries[key]) return pane.dynamicSeries[key];
+    
+    const series = pane.chart.addSeries(LightweightCharts.LineSeries, {
+        priceScaleId,
+        color,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        ...options
+    });
+    pane.dynamicSeries[key] = series;
+    return series;
+}
+
+// Core Technical Indicator Renderer supporting multiple simultaneous selections
 function updateIndicator(pane) {
-    if (!pane.indicatorSeries || !pane.upperIndicatorSeries || !pane.lowerIndicatorSeries || !pane.leftIndicatorSeries) return;
+    // 1. Clean up existing dynamic series
+    if (pane.dynamicSeries) {
+        Object.keys(pane.dynamicSeries).forEach(key => {
+            try {
+                pane.chart.removeSeries(pane.dynamicSeries[key]);
+            } catch(err) {
+                console.error("Error removing series:", err);
+            }
+        });
+    }
+    pane.dynamicSeries = {};
     
-    const selectEl = pane.element.querySelector(".indicator-select");
-    const type = selectEl ? selectEl.value : "none";
+    // 2. Clean up price lines
+    if (pane.priceLines) {
+        pane.priceLines.forEach(line => {
+            try {
+                pane.candleSeries.removePriceLine(line);
+            } catch(err) {}
+        });
+    }
+    pane.priceLines = [];
     
-    // Reset all lines, markers, and price lines first
-    pane.indicatorSeries.setData([]);
-    pane.upperIndicatorSeries.setData([]);
-    pane.lowerIndicatorSeries.setData([]);
-    pane.leftIndicatorSeries.setData([]);
+    // 3. Clear markers
     pane.candleSeries.setMarkers([]);
     
-    if (pane.pocLine) {
-        pane.candleSeries.removePriceLine(pane.pocLine);
-        pane.pocLine = null;
-    }
-    if (pane.vahLine) {
-        pane.candleSeries.removePriceLine(pane.vahLine);
-        pane.vahLine = null;
-    }
-    if (pane.valLine) {
-        pane.candleSeries.removePriceLine(pane.valLine);
-        pane.valLine = null;
-    }
-    if (pane.renkoSL) {
-        pane.candleSeries.removePriceLine(pane.renkoSL);
-        pane.renkoSL = null;
-    }
+    // 4. Parse selected indicators
+    const saved = localStorage.getItem(`${pane.id}_indicator`) || "none";
+    const types = saved.split(",").filter(x => x !== "none" && x !== "");
     
-    // Default show/hide left-axis price scale
-    const isLeftScale = ["rsi", "obv", "bharat_edge"].includes(type);
+    // 5. Manage left price scale visibility
+    const needsLeftScale = types.some(t => ["rsi", "obv", "bharat_edge"].includes(t));
     pane.chart.priceScale("left").applyOptions({
-        visible: isLeftScale
+        visible: needsLeftScale
     });
     
-    if (type === "none" || !pane.candles || pane.candles.length === 0) {
+    if (types.length === 0 || !pane.candles || pane.candles.length === 0) {
         return;
     }
     
-    // 1. Simple Moving Averages
-    if (type === "sma20") {
-        pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
-        pane.indicatorSeries.setData(calculateSMA(pane.candles, 20));
-    } else if (type === "sma50") {
-        pane.indicatorSeries.applyOptions({ color: "#fbbf24" }); // Amber yellow
-        pane.indicatorSeries.setData(calculateSMA(pane.candles, 50));
-    } else if (type === "sma100") {
-        pane.indicatorSeries.applyOptions({ color: "#a855f7" }); // Purple
-        pane.indicatorSeries.setData(calculateSMA(pane.candles, 100));
-    } else if (type === "sma200") {
-        pane.indicatorSeries.applyOptions({ color: "#e11d48" }); // Rose red
-        pane.indicatorSeries.setData(calculateSMA(pane.candles, 200));
-    }
+    const allMarkers = [];
     
-    // 2. Exponential Moving Averages
-    else if (type === "ema9") {
-        pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 9));
-    } else if (type === "ema10") {
-        pane.indicatorSeries.applyOptions({ color: "#22c55e" }); // Bright green
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 10));
-    } else if (type === "ema20") {
-        pane.indicatorSeries.applyOptions({ color: "#10b981" }); // Emerald green
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 20));
-    } else if (type === "ema30") {
-        pane.indicatorSeries.applyOptions({ color: "#f97316" }); // Orange
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 30));
-    } else if (type === "ema50") {
-        pane.indicatorSeries.applyOptions({ color: "#f43f5e" }); // Rose red
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 50));
-    } else if (type === "ema100") {
-        pane.indicatorSeries.applyOptions({ color: "#ec4899" }); // Pink
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 100));
-    } else if (type === "ema200") {
-        pane.indicatorSeries.applyOptions({ color: "#a855f7" }); // Purple
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 200));
-    }
-    
-    // 3. Other Overlays
-    else if (type === "vwap") {
-        pane.indicatorSeries.applyOptions({ color: "#eab308" }); // Yellow
-        pane.indicatorSeries.setData(calculateVWAP(pane.candles));
-    } else if (type === "wma20") {
-        pane.indicatorSeries.applyOptions({ color: "#f97316" }); // Orange
-        pane.indicatorSeries.setData(calculateWMA(pane.candles, 20));
-    } else if (type === "hma20") {
-        pane.indicatorSeries.applyOptions({ color: "#06b6d4" }); // Cyan
-        pane.indicatorSeries.setData(calculateHMA(pane.candles, 20));
-    }
-    
-    // 4. Supertrend
-    else if (type === "st_10_1") {
-        const st = calculateSupertrend(pane.candles, 10, 1);
-        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
-        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
-        pane.indicatorSeries.setData(st);
-    } else if (type === "st_10_2") {
-        const st = calculateSupertrend(pane.candles, 10, 2);
-        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
-        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
-        pane.indicatorSeries.setData(st);
-    } else if (type === "st_10_3") {
-        const st = calculateSupertrend(pane.candles, 10, 3);
-        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
-        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
-        pane.indicatorSeries.setData(st);
-    }
-    
-    // 5. Left Axis Oscillators
-    else if (type === "rsi") {
-        pane.leftIndicatorSeries.applyOptions({ color: "#ec4899" }); // Pink for RSI
-        pane.leftIndicatorSeries.setData(calculateRSI(pane.candles, 14));
-    } else if (type === "obv") {
-        pane.leftIndicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue for OBV
-        pane.leftIndicatorSeries.setData(calculateOBV(pane.candles));
-    }
-    
-    // 6. Markers / Patterns (FVG)
-    else if (type === "fvg") {
-        const markers = scanFairValueGaps(pane.candles);
-        pane.candleSeries.setMarkers(markers);
-    }
-    
-    // 7. Volume Profile POC/VA
-    else if (type === "vp") {
-        const vp = calculateVolumeProfile(pane.candles);
-        if (vp) {
-            pane.pocLine = pane.candleSeries.createPriceLine({
-                price: vp.pocPrice,
-                color: "#f43f5e", // red POC
-                lineWidth: 2,
-                lineStyle: 0, // Solid
-                axisLabelVisible: true,
-                title: "POC"
-            });
-            pane.valLine = pane.candleSeries.createPriceLine({
-                price: vp.valPrice,
-                color: "rgba(56, 189, 248, 0.6)", // cyan VAL
-                lineWidth: 1.5,
-                lineStyle: 2, // Dashed
-                axisLabelVisible: true,
-                title: "VAL"
-            });
-            pane.vahLine = pane.candleSeries.createPriceLine({
-                price: vp.vahPrice,
-                color: "rgba(56, 189, 248, 0.6)", // cyan VAH
-                lineWidth: 1.5,
-                lineStyle: 2, // Dashed
-                axisLabelVisible: true,
-                title: "VAH"
-            });
+    // Loop through each selected indicator type
+    types.forEach(type => {
+        // EMAs
+        if (type === "ema9") {
+            const series = getOrCreateSeries(pane, "ema9", "#38bdf8");
+            series.setData(calculateEMA(pane.candles, 9));
+        } else if (type === "ema10") {
+            const series = getOrCreateSeries(pane, "ema10", "#22c55e");
+            series.setData(calculateEMA(pane.candles, 10));
+        } else if (type === "ema20") {
+            const series = getOrCreateSeries(pane, "ema20", "#10b981");
+            series.setData(calculateEMA(pane.candles, 20));
+        } else if (type === "ema30") {
+            const series = getOrCreateSeries(pane, "ema30", "#f97316");
+            series.setData(calculateEMA(pane.candles, 30));
+        } else if (type === "ema50") {
+            const series = getOrCreateSeries(pane, "ema50", "#f43f5e");
+            series.setData(calculateEMA(pane.candles, 50));
+        } else if (type === "ema100") {
+            const series = getOrCreateSeries(pane, "ema100", "#ec4899");
+            series.setData(calculateEMA(pane.candles, 100));
+        } else if (type === "ema200") {
+            const series = getOrCreateSeries(pane, "ema200", "#a855f7");
+            series.setData(calculateEMA(pane.candles, 200));
         }
-    }
-    
-    // 8. Bollinger Bands
-    else if (type === "bb") {
-        pane.indicatorSeries.applyOptions({ color: "rgba(255, 255, 255, 0.4)" });
-        const bb = calculateBollingerBands(pane.candles, 20, 2);
-        pane.indicatorSeries.setData(bb.middle);
-        pane.upperIndicatorSeries.setData(bb.upper);
-        pane.lowerIndicatorSeries.setData(bb.lower);
-    }
-
-    // 9. Bharat Smart Edge (RSI Range Shift 60/40)
-    else if (type === "bharat_edge") {
-        pane.leftIndicatorSeries.applyOptions({ color: "#22c55e" }); // green line for RSI
-        pane.leftIndicatorSeries.setData(calculateRSI(pane.candles, 14));
         
-        pane.vahLine = pane.leftIndicatorSeries.createPriceLine({
-            price: 60,
-            color: "rgba(16, 185, 129, 0.4)", // green upper edge
-            lineWidth: 1.5,
-            lineStyle: 2, // Dashed
-            axisLabelVisible: true,
-            title: "Bullish Edge (60)"
-        });
-        pane.valLine = pane.leftIndicatorSeries.createPriceLine({
-            price: 40,
-            color: "rgba(244, 63, 94, 0.4)", // red lower edge
-            lineWidth: 1.5,
-            lineStyle: 2, // Dashed
-            axisLabelVisible: true,
-            title: "Bearish Edge (40)"
-        });
-    }
-
-    // 10. Dr. Devendra Smart Renko Engine (with targets & non-repainting buy/sell signals)
-    else if (type === "devendra_renko") {
-        const renko = calculateRenkoTargets(pane.candles);
-        if (renko) {
-            // Plot Buy/Sell signals as markers on the candles
-            const markers = renko.signals.map(sig => ({
-                time: sig.time,
-                position: sig.type === "BUY" ? "belowBar" : "aboveBar",
-                color: sig.type === "BUY" ? "#10b981" : "#f43f5e",
-                shape: sig.type === "BUY" ? "arrowUp" : "arrowDown",
-                text: `${sig.type} (Renko)`
-            }));
-            pane.candleSeries.setMarkers(markers);
-            
-            // Plot Targets
-            pane.valLine = pane.candleSeries.createPriceLine({
-                price: renko.target1,
-                color: "#10b981",
-                lineWidth: 1.5,
-                lineStyle: 2,
-                axisLabelVisible: true,
-                title: `Target 1 (${renko.latestSignal.type === "BUY" ? "UP" : "DOWN"})`
-            });
-            pane.vahLine = pane.candleSeries.createPriceLine({
-                price: renko.target2,
-                color: "#059669",
-                lineWidth: 1.5,
-                lineStyle: 2,
-                axisLabelVisible: true,
-                title: "Target 2"
-            });
-            pane.pocLine = pane.candleSeries.createPriceLine({
-                price: renko.target3,
-                color: "#047857",
-                lineWidth: 2,
-                lineStyle: 0,
-                axisLabelVisible: true,
-                title: "Target 3"
-            });
-            pane.renkoSL = pane.candleSeries.createPriceLine({
-                price: renko.stopLoss,
-                color: "#ef4444",
-                lineWidth: 2,
-                lineStyle: 2,
-                axisLabelVisible: true,
-                title: "Stop Loss"
-            });
+        // SMAs
+        else if (type === "sma20") {
+            const series = getOrCreateSeries(pane, "sma20", "#38bdf8");
+            series.setData(calculateSMA(pane.candles, 20));
+        } else if (type === "sma50") {
+            const series = getOrCreateSeries(pane, "sma50", "#fbbf24");
+            series.setData(calculateSMA(pane.candles, 50));
+        } else if (type === "sma100") {
+            const series = getOrCreateSeries(pane, "sma100", "#a855f7");
+            series.setData(calculateSMA(pane.candles, 100));
+        } else if (type === "sma200") {
+            const series = getOrCreateSeries(pane, "sma200", "#e11d48");
+            series.setData(calculateSMA(pane.candles, 200));
         }
+        
+        // Other Overlays
+        else if (type === "vwap") {
+            const series = getOrCreateSeries(pane, "vwap", "#eab308");
+            series.setData(calculateVWAP(pane.candles));
+        } else if (type === "wma20") {
+            const series = getOrCreateSeries(pane, "wma20", "#f97316");
+            series.setData(calculateWMA(pane.candles, 20));
+        } else if (type === "hma20") {
+            const series = getOrCreateSeries(pane, "hma20", "#06b6d4");
+            series.setData(calculateHMA(pane.candles, 20));
+        }
+        
+        // Supertrends
+        else if (type === "st_10_1") {
+            const st = calculateSupertrend(pane.candles, 10, 1);
+            const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+            const color = lastTrend === 1 ? "#10b981" : "#f43f5e";
+            const series = getOrCreateSeries(pane, "st_10_1", color);
+            series.setData(st);
+        } else if (type === "st_10_2") {
+            const st = calculateSupertrend(pane.candles, 10, 2);
+            const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+            const color = lastTrend === 1 ? "#10b981" : "#f43f5e";
+            const series = getOrCreateSeries(pane, "st_10_2", color);
+            series.setData(st);
+        } else if (type === "st_10_3") {
+            const st = calculateSupertrend(pane.candles, 10, 3);
+            const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+            const color = lastTrend === 1 ? "#10b981" : "#f43f5e";
+            const series = getOrCreateSeries(pane, "st_10_3", color);
+            series.setData(st);
+        }
+        
+        // Oscillators (Left scale)
+        else if (type === "rsi") {
+            const series = getOrCreateSeries(pane, "rsi", "#ec4899", "left");
+            series.setData(calculateRSI(pane.candles, 14));
+        } else if (type === "obv") {
+            const series = getOrCreateSeries(pane, "obv", "#38bdf8", "left");
+            series.setData(calculateOBV(pane.candles));
+        } else if (type === "bharat_edge") {
+            const series = getOrCreateSeries(pane, "bharat_edge", "#22c55e", "left");
+            series.setData(calculateRSI(pane.candles, 14));
+            
+            const edge60 = series.createPriceLine({
+                price: 60,
+                color: "rgba(16, 185, 129, 0.4)",
+                lineWidth: 1.5,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: "Bullish Edge (60)"
+            });
+            const edge40 = series.createPriceLine({
+                price: 40,
+                color: "rgba(244, 63, 94, 0.4)",
+                lineWidth: 1.5,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: "Bearish Edge (40)"
+            });
+            pane.priceLines.push(edge60, edge40);
+        }
+        
+        // Fair Value Gaps
+        else if (type === "fvg") {
+            const markers = scanFairValueGaps(pane.candles);
+            allMarkers.push(...markers);
+        }
+        
+        // Volume Profile
+        else if (type === "vp") {
+            const vp = calculateVolumeProfile(pane.candles);
+            if (vp) {
+                const pocLine = pane.candleSeries.createPriceLine({
+                    price: vp.pocPrice,
+                    color: "#f43f5e",
+                    lineWidth: 2,
+                    lineStyle: 0,
+                    axisLabelVisible: true,
+                    title: "POC"
+                });
+                const valLine = pane.candleSeries.createPriceLine({
+                    price: vp.valPrice,
+                    color: "rgba(56, 189, 248, 0.6)",
+                    lineWidth: 1.5,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: "VAL"
+                });
+                const vahLine = pane.candleSeries.createPriceLine({
+                    price: vp.vahPrice,
+                    color: "rgba(56, 189, 248, 0.6)",
+                    lineWidth: 1.5,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: "VAH"
+                });
+                pane.priceLines.push(pocLine, valLine, vahLine);
+            }
+        }
+        
+        // Bollinger Bands
+        else if (type === "bb") {
+            const mid = getOrCreateSeries(pane, "bb_middle", "rgba(255, 255, 255, 0.4)");
+            const upper = getOrCreateSeries(pane, "bb_upper", "rgba(56, 189, 248, 0.4)", "right", { lineStyle: 2, lineWidth: 1.5 });
+            const lower = getOrCreateSeries(pane, "bb_lower", "rgba(56, 189, 248, 0.4)", "right", { lineStyle: 2, lineWidth: 1.5 });
+            
+            const bb = calculateBollingerBands(pane.candles, 20, 2);
+            mid.setData(bb.middle);
+            upper.setData(bb.upper);
+            lower.setData(bb.lower);
+        }
+        
+        // Dr. Devendra Renko Engine
+        else if (type === "devendra_renko") {
+            const renko = calculateRenkoTargets(pane.candles);
+            if (renko) {
+                renko.signals.forEach(sig => {
+                    allMarkers.push({
+                        time: sig.time,
+                        position: sig.type === "BUY" ? "belowBar" : "aboveBar",
+                        color: sig.type === "BUY" ? "#10b981" : "#f43f5e",
+                        shape: sig.type === "BUY" ? "arrowUp" : "arrowDown",
+                        text: `${sig.type} (Renko)`
+                    });
+                });
+                
+                const t1 = pane.candleSeries.createPriceLine({
+                    price: renko.target1,
+                    color: "#10b981",
+                    lineWidth: 1.5,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: `Target 1 (${renko.latestSignal.type === "BUY" ? "UP" : "DOWN"})`
+                });
+                const t2 = pane.candleSeries.createPriceLine({
+                    price: renko.target2,
+                    color: "#059669",
+                    lineWidth: 1.5,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: "Target 2"
+                });
+                const t3 = pane.candleSeries.createPriceLine({
+                    price: renko.target3,
+                    color: "#047857",
+                    lineWidth: 2,
+                    lineStyle: 0,
+                    axisLabelVisible: true,
+                    title: "Target 3"
+                });
+                const sl = pane.candleSeries.createPriceLine({
+                    price: renko.stopLoss,
+                    color: "#ef4444",
+                    lineWidth: 2,
+                    lineStyle: 2,
+                    axisLabelVisible: true,
+                    title: "Stop Loss"
+                });
+                pane.priceLines.push(t1, t2, t3, sl);
+            }
+        }
+    });
+    
+    // Sort and set accumulated markers
+    if (allMarkers.length > 0) {
+        allMarkers.sort((a, b) => a.time - b.time);
+        pane.candleSeries.setMarkers(allMarkers);
     }
 }
 
