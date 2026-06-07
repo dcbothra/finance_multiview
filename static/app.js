@@ -104,15 +104,27 @@ function createPanes() {
                     </select>
                     <select class="indicator-select" data-pane-id="${paneId}">
                         <option value="none" ${savedIndicator === "none" ? "selected" : ""}>INDICATORS</option>
-                        <option value="sma20" ${savedIndicator === "sma20" ? "selected" : ""}>SMA 20</option>
+                        <option value="ema9" ${savedIndicator === "ema9" ? "selected" : ""}>EMA 9</option>
+                        <option value="ema10" ${savedIndicator === "ema10" ? "selected" : ""}>EMA 10</option>
                         <option value="ema20" ${savedIndicator === "ema20" ? "selected" : ""}>EMA 20</option>
-                        <option value="sma50" ${savedIndicator === "sma50" ? "selected" : ""}>SMA 50</option>
+                        <option value="ema30" ${savedIndicator === "ema30" ? "selected" : ""}>EMA 30</option>
                         <option value="ema50" ${savedIndicator === "ema50" ? "selected" : ""}>EMA 50</option>
-                        <option value="sma100" ${savedIndicator === "sma100" ? "selected" : ""}>SMA 100</option>
                         <option value="ema100" ${savedIndicator === "ema100" ? "selected" : ""}>EMA 100</option>
+                        <option value="ema200" ${savedIndicator === "ema200" ? "selected" : ""}>EMA 200</option>
+                        <option value="sma20" ${savedIndicator === "sma20" ? "selected" : ""}>SMA 20</option>
+                        <option value="sma50" ${savedIndicator === "sma50" ? "selected" : ""}>SMA 50</option>
+                        <option value="sma100" ${savedIndicator === "sma100" ? "selected" : ""}>SMA 100</option>
+                        <option value="sma200" ${savedIndicator === "sma200" ? "selected" : ""}>SMA 200</option>
+                        <option value="vwap" ${savedIndicator === "vwap" ? "selected" : ""}>VWAP</option>
                         <option value="wma20" ${savedIndicator === "wma20" ? "selected" : ""}>WMA 20</option>
                         <option value="hma20" ${savedIndicator === "hma20" ? "selected" : ""}>HMA 20</option>
-                        <option value="vwap" ${savedIndicator === "vwap" ? "selected" : ""}>VWAP</option>
+                        <option value="st_10_1" ${savedIndicator === "st_10_1" ? "selected" : ""}>Supertrend 10,1</option>
+                        <option value="st_10_2" ${savedIndicator === "st_10_2" ? "selected" : ""}>Supertrend 10,2</option>
+                        <option value="st_10_3" ${savedIndicator === "st_10_3" ? "selected" : ""}>Supertrend 10,3</option>
+                        <option value="rsi" ${savedIndicator === "rsi" ? "selected" : ""}>RSI 14</option>
+                        <option value="obv" ${savedIndicator === "obv" ? "selected" : ""}>On Balance Volume (OBV)</option>
+                        <option value="fvg" ${savedIndicator === "fvg" ? "selected" : ""}>Fair Value Gap (FVG)</option>
+                        <option value="vp" ${savedIndicator === "vp" ? "selected" : ""}>Volume Profile (POC/VA)</option>
                         <option value="bb" ${savedIndicator === "bb" ? "selected" : ""}>Bollinger Bands (20, 2)</option>
                     </select>
                 </div>
@@ -215,6 +227,19 @@ function createPanes() {
             lineStyle: 2 // Dashed
         });
 
+        const leftIndicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
+            priceScaleId: "left",
+            color: "#eab308", // gold for left-axis indicator
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false
+        });
+
+        // Hide left scale initially
+        chart.priceScale("left").applyOptions({
+            visible: false
+        });
+
         // Store pane reference
         const paneObj = {
             id: paneId,
@@ -226,6 +251,10 @@ function createPanes() {
             indicatorSeries: indicatorSeries,
             upperIndicatorSeries: upperIndicatorSeries,
             lowerIndicatorSeries: lowerIndicatorSeries,
+            leftIndicatorSeries: leftIndicatorSeries,
+            pocLine: null,
+            vahLine: null,
+            valLine: null,
             source: savedSource,
             symbol: savedSymbol,
             timeframe: savedTimeframe,
@@ -786,30 +815,26 @@ function calculateHMA(data, period) {
     const halfPeriod = Math.floor(period / 2);
     const sqrtPeriod = Math.floor(Math.sqrt(period));
     
-    // 1. Calculate WMA(period/2) and WMA(period)
     const wmaHalf = calculateWMA(data, halfPeriod);
     const wmaFull = calculateWMA(data, period);
     
-    // Map them by time
     const wmaHalfMap = {};
     wmaHalf.forEach(x => wmaHalfMap[x.time] = x.value);
     
     const wmaFullMap = {};
     wmaFull.forEach(x => wmaFullMap[x.time] = x.value);
     
-    // 2. Raw HMA = 2 * WMA(n/2) - WMA(n)
     const rawHma = [];
     for (let i = 0; i < data.length; i++) {
         const t = data[i].time;
         if (wmaHalfMap[t] !== undefined && wmaFullMap[t] !== undefined) {
             rawHma.push({
                 time: t,
-                value: 2 * wmaHalfMap[t] - wmaFullMap[t] // stored under 'value' for WMA input format compatibility
+                value: 2 * wmaHalfMap[t] - wmaFullMap[t]
             });
         }
     }
     
-    // 3. HMA = WMA(sqrt(n)) of rawHma
     const hmaResult = calculateWMA(rawHma, sqrtPeriod);
     return hmaResult;
 }
@@ -825,7 +850,6 @@ function calculateVWAP(data) {
         const typicalPrice = (bar.high + bar.low + bar.close) / 3;
         const volume = bar.volume || 0;
         
-        // Detect daily boundary to reset cumulative statistics
         const date = new Date(bar.time * 1000);
         const dayStr = date.getUTCFullYear() + "-" + date.getUTCMonth() + "-" + date.getUTCDate();
         
@@ -847,51 +871,427 @@ function calculateVWAP(data) {
     return vwap;
 }
 
+function calculateSupertrend(data, period, multiplier) {
+    if (data.length < period) return [];
+    
+    const tr = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i === 0) {
+            tr.push(data[i].high - data[i].low);
+        } else {
+            const prevClose = data[i - 1].close;
+            tr.push(Math.max(
+                data[i].high - data[i].low,
+                Math.abs(data[i].high - prevClose),
+                Math.abs(data[i].low - prevClose)
+            ));
+        }
+    }
+    
+    const atr = [];
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += tr[i];
+    }
+    let prevAtr = sum / period;
+    
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            atr.push(0);
+        } else if (i === period - 1) {
+            atr.push(prevAtr);
+        } else {
+            const currentAtr = (prevAtr * (period - 1) + tr[i]) / period;
+            atr.push(currentAtr);
+            prevAtr = currentAtr;
+        }
+    }
+    
+    const supertrend = [];
+    let prevFub = 0;
+    let prevFlb = 0;
+    let prevTrend = 1;
+    
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            supertrend.push({ time: data[i].time, value: data[i].close, trend: 1 });
+            continue;
+        }
+        
+        const hl2 = (data[i].high + data[i].low) / 2;
+        const curAtr = atr[i];
+        
+        const bub = hl2 + multiplier * curAtr;
+        const blb = hl2 - multiplier * curAtr;
+        
+        const close = data[i].close;
+        const prevClose = data[i - 1].close;
+        
+        let fub = bub;
+        let flb = blb;
+        
+        if (i > period - 1) {
+            fub = (bub < prevFub || prevClose > prevFub) ? bub : prevFub;
+            flb = (blb > prevFlb || prevClose < prevFlb) ? blb : prevFlb;
+        }
+        
+        let trend = prevTrend;
+        let st = 0;
+        
+        if (trend === 1) {
+            if (close < flb) {
+                trend = -1;
+                st = fub;
+            } else {
+                st = flb;
+            }
+        } else {
+            if (close > fub) {
+                trend = 1;
+                st = flb;
+            } else {
+                st = fub;
+            }
+        }
+        
+        supertrend.push({
+            time: data[i].time,
+            value: st,
+            trend: trend
+        });
+        
+        prevFub = fub;
+        prevFlb = flb;
+        prevTrend = trend;
+    }
+    
+    return supertrend.slice(period - 1);
+}
+
+function calculateRSI(data, period) {
+    const rsi = [];
+    if (data.length < period + 1) return rsi;
+    
+    let gains = [];
+    let losses = [];
+    
+    for (let i = 1; i < data.length; i++) {
+        const diff = data[i].close - data[i - 1].close;
+        gains.push(diff > 0 ? diff : 0);
+        losses.push(diff < 0 ? -diff : 0);
+    }
+    
+    let avgGain = 0;
+    let avgLoss = 0;
+    
+    for (let i = 0; i < period; i++) {
+        avgGain += gains[i];
+        avgLoss += losses[i];
+    }
+    
+    avgGain /= period;
+    avgLoss /= period;
+    
+    rsi.push({
+        time: data[period].time,
+        value: avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss))
+    });
+    
+    for (let i = period; i < gains.length; i++) {
+        avgGain = (avgGain * (period - 1) + gains[i]) / period;
+        avgLoss = (avgLoss * (period - 1) + losses[i]) / period;
+        rsi.push({
+            time: data[i + 1].time,
+            value: avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss))
+        });
+    }
+    return rsi;
+}
+
+function calculateOBV(data) {
+    const obv = [];
+    let currentObv = 0;
+    for (let i = 0; i < data.length; i++) {
+        const bar = data[i];
+        if (i > 0) {
+            const prevClose = data[i - 1].close;
+            if (bar.close > prevClose) {
+                currentObv += bar.volume || 0;
+            } else if (bar.close < prevClose) {
+                currentObv -= bar.volume || 0;
+            }
+        } else {
+            currentObv = bar.volume || 0;
+        }
+        obv.push({
+            time: bar.time,
+            value: currentObv
+        });
+    }
+    return obv;
+}
+
+function scanFairValueGaps(data) {
+    const markers = [];
+    if (data.length < 3) return markers;
+    
+    for (let i = 2; i < data.length; i++) {
+        const c1 = data[i - 2];
+        const c2 = data[i - 1];
+        const c3 = data[i];
+        
+        if (c3.low > c1.high) {
+            markers.push({
+                time: c2.time,
+                position: "belowBar",
+                color: "#10b981",
+                shape: "arrowUp",
+                text: "Bullish FVG"
+            });
+        } else if (c3.high < c1.low) {
+            markers.push({
+                time: c2.time,
+                position: "aboveBar",
+                color: "#f43f5e",
+                shape: "arrowDown",
+                text: "Bearish FVG"
+            });
+        }
+    }
+    return markers;
+}
+
+function calculateVolumeProfile(data) {
+    if (data.length === 0) return null;
+    
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    for (let i = 0; i < data.length; i++) {
+        if (data[i].low < minPrice) minPrice = data[i].low;
+        if (data[i].high > maxPrice) maxPrice = data[i].high;
+    }
+    
+    const numBins = 50;
+    const binSize = (maxPrice - minPrice) / numBins;
+    if (binSize === 0) return null;
+    
+    const bins = Array(numBins).fill(0).map((_, idx) => ({
+        price: minPrice + idx * binSize + binSize / 2,
+        low: minPrice + idx * binSize,
+        high: minPrice + (idx + 1) * binSize,
+        volume: 0
+    }));
+    
+    let totalVolume = 0;
+    for (let i = 0; i < data.length; i++) {
+        const bar = data[i];
+        const vol = bar.volume || 0;
+        totalVolume += vol;
+        
+        let overlapBins = [];
+        for (let j = 0; j < numBins; j++) {
+            if (bar.low <= bins[j].high && bar.high >= bins[j].low) {
+                overlapBins.push(j);
+            }
+        }
+        
+        if (overlapBins.length > 0) {
+            const volPerBin = vol / overlapBins.length;
+            overlapBins.forEach(idx => {
+                bins[idx].volume += volPerBin;
+            });
+        }
+    }
+    
+    let maxVol = -1;
+    let pocIdx = 0;
+    for (let i = 0; i < numBins; i++) {
+        if (bins[i].volume > maxVol) {
+            maxVol = bins[i].volume;
+            pocIdx = i;
+        }
+    }
+    const pocPrice = bins[pocIdx].price;
+    
+    const targetVolume = totalVolume * 0.7;
+    let currentVolume = bins[pocIdx].volume;
+    let lowIdx = pocIdx;
+    let highIdx = pocIdx;
+    
+    while (currentVolume < targetVolume && (lowIdx > 0 || highIdx < numBins - 1)) {
+        const nextLowVol = lowIdx > 0 ? bins[lowIdx - 1].volume : -1;
+        const nextHighVol = highIdx < numBins - 1 ? bins[highIdx + 1].volume : -1;
+        
+        if (nextLowVol > nextHighVol) {
+            lowIdx--;
+            currentVolume += nextLowVol;
+        } else {
+            highIdx++;
+            currentVolume += nextHighVol;
+        }
+    }
+    
+    const valPrice = bins[lowIdx].low;
+    const vahPrice = bins[highIdx].high;
+    
+    return { pocPrice, valPrice, vahPrice };
+}
+
 // Core Technical Indicator Renderer
 function updateIndicator(pane) {
-    if (!pane.indicatorSeries || !pane.upperIndicatorSeries || !pane.lowerIndicatorSeries) return;
+    if (!pane.indicatorSeries || !pane.upperIndicatorSeries || !pane.lowerIndicatorSeries || !pane.leftIndicatorSeries) return;
     
     const selectEl = pane.element.querySelector(".indicator-select");
     const type = selectEl ? selectEl.value : "none";
     
-    // Reset all lines first
+    // Reset all lines, markers, and price lines first
     pane.indicatorSeries.setData([]);
     pane.upperIndicatorSeries.setData([]);
     pane.lowerIndicatorSeries.setData([]);
+    pane.leftIndicatorSeries.setData([]);
+    pane.candleSeries.setMarkers([]);
+    
+    if (pane.pocLine) {
+        pane.candleSeries.removePriceLine(pane.pocLine);
+        pane.pocLine = null;
+    }
+    if (pane.vahLine) {
+        pane.candleSeries.removePriceLine(pane.vahLine);
+        pane.vahLine = null;
+    }
+    if (pane.valLine) {
+        pane.candleSeries.removePriceLine(pane.valLine);
+        pane.valLine = null;
+    }
+    
+    // Default show/hide left-axis price scale
+    const isLeftScale = ["rsi", "obv"].includes(type);
+    pane.chart.priceScale("left").applyOptions({
+        visible: isLeftScale
+    });
     
     if (type === "none" || !pane.candles || pane.candles.length === 0) {
         return;
     }
     
+    // 1. Simple Moving Averages
     if (type === "sma20") {
         pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
         pane.indicatorSeries.setData(calculateSMA(pane.candles, 20));
-    } else if (type === "ema20") {
-        pane.indicatorSeries.applyOptions({ color: "#10b981" }); // Emerald green
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 20));
     } else if (type === "sma50") {
         pane.indicatorSeries.applyOptions({ color: "#fbbf24" }); // Amber yellow
         pane.indicatorSeries.setData(calculateSMA(pane.candles, 50));
-    } else if (type === "ema50") {
-        pane.indicatorSeries.applyOptions({ color: "#f43f5e" }); // Rose red
-        pane.indicatorSeries.setData(calculateEMA(pane.candles, 50));
     } else if (type === "sma100") {
         pane.indicatorSeries.applyOptions({ color: "#a855f7" }); // Purple
         pane.indicatorSeries.setData(calculateSMA(pane.candles, 100));
+    } else if (type === "sma200") {
+        pane.indicatorSeries.applyOptions({ color: "#e11d48" }); // Rose red
+        pane.indicatorSeries.setData(calculateSMA(pane.candles, 200));
+    }
+    
+    // 2. Exponential Moving Averages
+    else if (type === "ema9") {
+        pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 9));
+    } else if (type === "ema10") {
+        pane.indicatorSeries.applyOptions({ color: "#22c55e" }); // Bright green
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 10));
+    } else if (type === "ema20") {
+        pane.indicatorSeries.applyOptions({ color: "#10b981" }); // Emerald green
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 20));
+    } else if (type === "ema30") {
+        pane.indicatorSeries.applyOptions({ color: "#f97316" }); // Orange
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 30));
+    } else if (type === "ema50") {
+        pane.indicatorSeries.applyOptions({ color: "#f43f5e" }); // Rose red
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 50));
     } else if (type === "ema100") {
         pane.indicatorSeries.applyOptions({ color: "#ec4899" }); // Pink
         pane.indicatorSeries.setData(calculateEMA(pane.candles, 100));
+    } else if (type === "ema200") {
+        pane.indicatorSeries.applyOptions({ color: "#a855f7" }); // Purple
+        pane.indicatorSeries.setData(calculateEMA(pane.candles, 200));
+    }
+    
+    // 3. Other Overlays
+    else if (type === "vwap") {
+        pane.indicatorSeries.applyOptions({ color: "#eab308" }); // Yellow
+        pane.indicatorSeries.setData(calculateVWAP(pane.candles));
     } else if (type === "wma20") {
         pane.indicatorSeries.applyOptions({ color: "#f97316" }); // Orange
         pane.indicatorSeries.setData(calculateWMA(pane.candles, 20));
     } else if (type === "hma20") {
         pane.indicatorSeries.applyOptions({ color: "#06b6d4" }); // Cyan
         pane.indicatorSeries.setData(calculateHMA(pane.candles, 20));
-    } else if (type === "vwap") {
-        pane.indicatorSeries.applyOptions({ color: "#eab308" }); // Yellow
-        pane.indicatorSeries.setData(calculateVWAP(pane.candles));
-    } else if (type === "bb") {
-        pane.indicatorSeries.applyOptions({ color: "rgba(255, 255, 255, 0.4)" }); // Semi-transparent white for Middle Band
+    }
+    
+    // 4. Supertrend
+    else if (type === "st_10_1") {
+        const st = calculateSupertrend(pane.candles, 10, 1);
+        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
+        pane.indicatorSeries.setData(st);
+    } else if (type === "st_10_2") {
+        const st = calculateSupertrend(pane.candles, 10, 2);
+        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
+        pane.indicatorSeries.setData(st);
+    } else if (type === "st_10_3") {
+        const st = calculateSupertrend(pane.candles, 10, 3);
+        const lastTrend = st.length > 0 ? st[st.length - 1].trend : 1;
+        pane.indicatorSeries.applyOptions({ color: lastTrend === 1 ? "#10b981" : "#f43f5e" });
+        pane.indicatorSeries.setData(st);
+    }
+    
+    // 5. Left Axis Oscillators
+    else if (type === "rsi") {
+        pane.leftIndicatorSeries.applyOptions({ color: "#ec4899" }); // Pink for RSI
+        pane.leftIndicatorSeries.setData(calculateRSI(pane.candles, 14));
+    } else if (type === "obv") {
+        pane.leftIndicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue for OBV
+        pane.leftIndicatorSeries.setData(calculateOBV(pane.candles));
+    }
+    
+    // 6. Markers / Patterns (FVG)
+    else if (type === "fvg") {
+        const markers = scanFairValueGaps(pane.candles);
+        pane.candleSeries.setMarkers(markers);
+    }
+    
+    // 7. Volume Profile POC/VA
+    else if (type === "vp") {
+        const vp = calculateVolumeProfile(pane.candles);
+        if (vp) {
+            pane.pocLine = pane.candleSeries.createPriceLine({
+                price: vp.pocPrice,
+                color: "#f43f5e", // red POC
+                lineWidth: 2,
+                lineStyle: 0, // Solid
+                axisLabelVisible: true,
+                title: "POC"
+            });
+            pane.valLine = pane.candleSeries.createPriceLine({
+                price: vp.valPrice,
+                color: "rgba(56, 189, 248, 0.6)", // cyan VAL
+                lineWidth: 1.5,
+                lineStyle: 2, // Dashed
+                axisLabelVisible: true,
+                title: "VAL"
+            });
+            pane.vahLine = pane.candleSeries.createPriceLine({
+                price: vp.vahPrice,
+                color: "rgba(56, 189, 248, 0.6)", // cyan VAH
+                lineWidth: 1.5,
+                lineStyle: 2, // Dashed
+                axisLabelVisible: true,
+                title: "VAH"
+            });
+        }
+    }
+    
+    // 8. Bollinger Bands
+    else if (type === "bb") {
+        pane.indicatorSeries.applyOptions({ color: "rgba(255, 255, 255, 0.4)" });
         const bb = calculateBollingerBands(pane.candles, 20, 2);
         pane.indicatorSeries.setData(bb.middle);
         pane.upperIndicatorSeries.setData(bb.upper);
