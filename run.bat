@@ -1,51 +1,55 @@
 @echo off
-:: Local run script for Windows
+:: Bulletproof Local run script for Windows
 echo ==================================================
 echo           Starting Finance MultiView
 echo ==================================================
 
-:: Create Desktop Shortcut if it does not exist yet
-set "SHORTCUT_PATH=%userprofile%\Desktop\Finance MultiView.lnk"
-if not exist "%SHORTCUT_PATH%" (
-    echo Creating Desktop Shortcut...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "$s = (New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT_PATH%'); ^
-         $s.TargetPath = '%~dp0run.bat'; ^
-         $s.WorkingDirectory = '%~dp0'; ^
+:: Get current directory (with trailing slash)
+set "CURRENT_DIR=%~dp0"
+
+:: Create Desktop Shortcut if it does not exist yet (handles OneDrive and spaces)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$desktop = [Environment]::GetFolderPath('Desktop'); ^
+     $shortcutPath = Join-Path $desktop 'Finance MultiView.lnk'; ^
+     if (-not (Test-Path $shortcutPath)) { ^
+         echo 'Creating Desktop Shortcut...'; ^
+         $s = (New-Object -COM WScript.Shell).CreateShortcut($shortcutPath); ^
+         $s.TargetPath = '%CURRENT_DIR%run.bat'; ^
+         $s.WorkingDirectory = '%CURRENT_DIR%'; ^
          $s.IconLocation = 'shell32.dll,170'; ^
          $s.Description = 'Launch Finance MultiView Charting Dashboard'; ^
-         $s.Save()"
-    echo Desktop shortcut successfully created!
-)
+         $s.Save(); ^
+         echo 'Desktop shortcut successfully created!'; ^
+     }"
 
-:: Check for Python
-where python >nul 2>nul
+:: Check if Python is installed and fully runnable (prevents Windows Store alias trap)
+python -c "import sys" >nul 2>nul
 if %errorlevel% neq 0 (
-    echo ERROR: Python is not installed!
-    echo Please download and install Python from https://www.python.org/
-    echo (Make sure to check "Add Python to PATH" during installation)
+    echo ERROR: Python is not installed or not configured in your PATH!
+    echo Please download and install Python 3 from https://www.python.org/
+    echo (Crucial: Check the "Add Python to PATH" box during installation)
     pause
     exit /b
 )
 
-:: Setup virtual environment
-if not exist venv (
+:: Setup virtual environment inside the script folder
+if not exist "%CURRENT_DIR%venv" (
     echo Creating virtual environment...
-    python -m venv venv
+    python -m venv "%CURRENT_DIR%venv"
 )
 
 :: Activate virtual environment
-call venv\Scripts\activate
+call "%CURRENT_DIR%venv\Scripts\activate.bat"
 
 :: Install dependencies
 echo Installing/verifying packages...
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r "%CURRENT_DIR%requirements.txt"
 
 :: Open the dashboard web page automatically
 echo Launching dashboard...
 start "" http://localhost:5000
 
 :: Launch Flask server
-python main.py
+python "%CURRENT_DIR%main.py"
 pause
