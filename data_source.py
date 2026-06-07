@@ -1,5 +1,6 @@
 import time
 import json
+import math
 import threading
 import requests
 import websocket
@@ -342,14 +343,24 @@ class YFinanceDataSource(BaseDataSource):
             candles = []
             if not df.empty:
                 for idx, row in df.iterrows():
-                    candles.append({
-                        "time": int(idx.timestamp()),
-                        "open": float(row["Open"]),
-                        "high": float(row["High"]),
-                        "low": float(row["Low"]),
-                        "close": float(row["Close"]),
-                        "volume": float(row["Volume"])
-                    })
+                    try:
+                        o = float(row["Open"])
+                        h = float(row["High"])
+                        l = float(row["Low"])
+                        c = float(row["Close"])
+                        v = float(row["Volume"]) if "Volume" in row else 0.0
+                        
+                        if not (math.isnan(o) or math.isnan(h) or math.isnan(l) or math.isnan(c)):
+                            candles.append({
+                                "time": int(idx.timestamp()),
+                                "open": o,
+                                "high": h,
+                                "low": l,
+                                "close": c,
+                                "volume": 0.0 if math.isnan(v) else v
+                            })
+                    except Exception:
+                        pass
                 candles.sort(key=lambda x: x["time"])
             return candles
         except Exception as e:
