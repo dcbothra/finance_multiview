@@ -19,14 +19,8 @@ let activeGridCount = 4;
 // Default configuration presets for symbols
 const PRESETS = {
     hyperliquid: ["BTC", "ETH", "SOL", "ARB", "OP", "SUI", "HYPE", "JUP", "PYTH", "AVAX", "NEAR"],
-    yfinance: [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS",
-        "^NSEI", "^BSESN",
-        "AAPL", "MSFT", "NVDA", "TSLA", "AMZN",
-        "^GSPC", "^IXIC",
-        "USDINR=X", "EURUSD=X",
-        "GC=F", "CL=F"
-    ]
+    yfinance_us: ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "AMD", "META", "GOOGL", "^GSPC", "^IXIC", "EURUSD=X", "GC=F"],
+    yfinance_in: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS", "SBIN.NS", "^NSEI", "^BSESN", "USDINR=X"]
 };
 
 // Initialize the application on DOM load
@@ -65,9 +59,13 @@ function createPanes() {
         const paneId = `pane_${i}`;
         
         // Retrieve last saved config for this pane or use defaults
-        const savedSource = localStorage.getItem(`${paneId}_source`) || (i % 2 === 0 ? "hyperliquid" : "yfinance");
-        const savedSymbol = localStorage.getItem(`${paneId}_symbol`) || (savedSource === "hyperliquid" ? "BTC" : "RELIANCE.NS");
+        let savedSource = localStorage.getItem(`${paneId}_source`) || (i % 2 === 0 ? "hyperliquid" : "yfinance_in");
+        if (savedSource === "yfinance") {
+            savedSource = "yfinance_in";
+        }
+        const savedSymbol = localStorage.getItem(`${paneId}_symbol`) || (savedSource === "hyperliquid" ? "BTC" : (savedSource === "yfinance_us" ? "AAPL" : "RELIANCE.NS"));
         const savedTimeframe = localStorage.getItem(`${paneId}_timeframe`) || "5m";
+        const savedIndicator = localStorage.getItem(`${paneId}_indicator`) || "none";
 
         // Create DOM structure
         const paneEl = document.createElement("div");
@@ -79,8 +77,9 @@ function createPanes() {
             <div class="pane-header">
                 <div class="pane-controls">
                     <select class="source-select" data-pane-id="${paneId}">
-                        <option value="hyperliquid" ${savedSource === "hyperliquid" ? "selected" : ""}>Hyperliquid</option>
-                        <option value="yfinance" ${savedSource === "yfinance" ? "selected" : ""}>yfinance (India)</option>
+                        <option value="hyperliquid" ${savedSource === "hyperliquid" ? "selected" : ""}>Hyperliquid (Crypto)</option>
+                        <option value="yfinance_us" ${savedSource === "yfinance_us" ? "selected" : ""}>Yahoo Finance (US Stocks)</option>
+                        <option value="yfinance_in" ${savedSource === "yfinance_in" ? "selected" : ""}>Yahoo Finance (India)</option>
                     </select>
                     <div class="symbol-input-group">
                         <input type="text" class="symbol-input" data-pane-id="${paneId}" value="${savedSymbol}" placeholder="e.g. AAPL, RELIANCE.NS, ^NSEI">
@@ -94,6 +93,13 @@ function createPanes() {
                         <option value="15m" ${savedTimeframe === "15m" ? "selected" : ""}>15m</option>
                         <option value="1h" ${savedTimeframe === "1h" ? "selected" : ""}>1h</option>
                         <option value="1d" ${savedTimeframe === "1d" ? "selected" : ""}>1d</option>
+                    </select>
+                    <select class="indicator-select" data-pane-id="${paneId}">
+                        <option value="none" ${savedIndicator === "none" ? "selected" : ""}>INDICATORS</option>
+                        <option value="sma20" ${savedIndicator === "sma20" ? "selected" : ""}>SMA 20</option>
+                        <option value="ema20" ${savedIndicator === "ema20" ? "selected" : ""}>EMA 20</option>
+                        <option value="sma50" ${savedIndicator === "sma50" ? "selected" : ""}>SMA 50</option>
+                        <option value="ema50" ${savedIndicator === "ema50" ? "selected" : ""}>EMA 50</option>
                     </select>
                 </div>
                 <div class="pane-ticker" id="${paneId}-ticker">
@@ -172,6 +178,13 @@ function createPanes() {
             }
         });
 
+        const indicatorSeries = chart.addSeries(LightweightCharts.LineSeries, {
+            color: "#10b981",
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false
+        });
+
         // Store pane reference
         const paneObj = {
             id: paneId,
@@ -180,6 +193,7 @@ function createPanes() {
             chart: chart,
             candleSeries: candleSeries,
             volumeSeries: volumeSeries,
+            indicatorSeries: indicatorSeries,
             source: savedSource,
             symbol: savedSymbol,
             timeframe: savedTimeframe,
@@ -187,7 +201,8 @@ function createPanes() {
             lastPrice: null,
             sessionOpenPrice: null,
             currentBar: null,
-            currentVolumeBar: null
+            currentVolumeBar: null,
+            candles: []
         };
 
         panes.push(paneObj);
@@ -229,12 +244,19 @@ function bindPaneEvents(pane) {
     const symbolInp = pane.element.querySelector(".symbol-input");
     const presetsSel = pane.element.querySelector(".presets-select");
     const timeframeSel = pane.element.querySelector(".timeframe-select");
+    const indicatorSel = pane.element.querySelector(".indicator-select");
 
     // Source change handler
     sourceSel.addEventListener("change", (e) => {
         pane.source = e.target.value;
         // Get default symbol for new source
-        pane.symbol = pane.source === "hyperliquid" ? "BTC" : "RELIANCE.NS";
+        if (pane.source === "hyperliquid") {
+            pane.symbol = "BTC";
+        } else if (pane.source === "yfinance_us") {
+            pane.symbol = "AAPL";
+        } else {
+            pane.symbol = "RELIANCE.NS";
+        }
         symbolInp.value = pane.symbol;
         
         localStorage.setItem(`${pane.id}_source`, pane.source);
@@ -278,6 +300,12 @@ function bindPaneEvents(pane) {
         pane.timeframe = e.target.value;
         localStorage.setItem(`${pane.id}_timeframe`, pane.timeframe);
         reconnectPane(pane);
+    });
+
+    // Indicator dropdown selection handler
+    indicatorSel.addEventListener("change", (e) => {
+        localStorage.setItem(`${pane.id}_indicator`, e.target.value);
+        updateIndicator(pane);
     });
 }
 
@@ -363,10 +391,11 @@ function reconnectPane(pane) {
 
 // Send subscribe message to WebSocket server
 function subscribePane(pane) {
+    const backendSource = (pane.source === "yfinance_us" || pane.source === "yfinance_in") ? "yfinance" : pane.source;
     const msg = {
         action: "subscribe",
         pane_id: pane.id,
-        source: pane.source,
+        source: backendSource,
         symbol: pane.symbol,
         timeframe: pane.timeframe
     };
@@ -483,6 +512,10 @@ function handleHistoryData(pane, data) {
     pane.candleSeries.setData(mainData);
     pane.volumeSeries.setData(volumeData);
     
+    // Store historical candles list and draw active indicator
+    pane.candles = [...mainData];
+    updateIndicator(pane);
+    
     // Fit content on load
     pane.chart.timeScale().fitContent();
 
@@ -539,6 +572,17 @@ function handleTickData(pane, data) {
     pane.candleSeries.update(bar);
     pane.volumeSeries.update(pane.currentVolumeBar);
 
+    // Update local candles array for live calculations
+    if (!pane.candles) {
+        pane.candles = [];
+    }
+    if (pane.candles.length === 0 || pane.candles[pane.candles.length - 1].time !== bar.time) {
+        pane.candles.push(bar);
+    } else {
+        pane.candles[pane.candles.length - 1] = bar;
+    }
+    updateIndicator(pane);
+
     // Apply flash triggers on price change
     const tickerEl = document.getElementById(`${pane.id}-ticker`);
     if (pane.lastPrice !== null && price !== pane.lastPrice) {
@@ -583,7 +627,7 @@ function updatePriceDisplay(pane, price) {
     const changeEl = document.getElementById(`${pane.id}-ticker-change`);
 
     // Format price
-    const prefix = pane.source === "yfinance" ? "₹" : "$";
+    const prefix = pane.source === "yfinance_in" ? "₹" : "$";
     const decimals = price < 1 ? 4 : 2;
     priceEl.innerText = prefix + price.toLocaleString(undefined, {
         minimumFractionDigits: decimals,
@@ -604,4 +648,80 @@ function updatePriceDisplay(pane, price) {
             changeEl.className = "ticker-change down";
         }
     }
+}
+
+// Technical Indicators Calculation Helpers
+function calculateSMA(data, period) {
+    const sma = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            continue; // Not enough data
+        }
+        let sum = 0;
+        for (let j = 0; j < period; j++) {
+            sum += data[i - j].close;
+        }
+        sma.push({
+            time: data[i].time,
+            value: sum / period
+        });
+    }
+    return sma;
+}
+
+function calculateEMA(data, period) {
+    const ema = [];
+    if (data.length < period) return ema;
+    
+    // First value is SMA
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += data[i].close;
+    }
+    let prevEma = sum / period;
+    ema.push({
+        time: data[period - 1].time,
+        value: prevEma
+    });
+    
+    const multiplier = 2 / (period + 1);
+    for (let i = period; i < data.length; i++) {
+        const val = (data[i].close - prevEma) * multiplier + prevEma;
+        ema.push({
+            time: data[i].time,
+            value: val
+        });
+        prevEma = val;
+    }
+    return ema;
+}
+
+// Core Technical Indicator Renderer
+function updateIndicator(pane) {
+    if (!pane.indicatorSeries) return;
+    
+    const selectEl = pane.element.querySelector(".indicator-select");
+    const type = selectEl ? selectEl.value : "none";
+    
+    if (type === "none" || !pane.candles || pane.candles.length === 0) {
+        pane.indicatorSeries.setData([]);
+        return;
+    }
+    
+    let indicatorData = [];
+    if (type === "sma20") {
+        pane.indicatorSeries.applyOptions({ color: "#38bdf8" }); // Sky blue
+        indicatorData = calculateSMA(pane.candles, 20);
+    } else if (type === "ema20") {
+        pane.indicatorSeries.applyOptions({ color: "#10b981" }); // Emerald green
+        indicatorData = calculateEMA(pane.candles, 20);
+    } else if (type === "sma50") {
+        pane.indicatorSeries.applyOptions({ color: "#fbbf24" }); // Amber yellow
+        indicatorData = calculateSMA(pane.candles, 50);
+    } else if (type === "ema50") {
+        pane.indicatorSeries.applyOptions({ color: "#f43f5e" }); // Rose red
+        indicatorData = calculateEMA(pane.candles, 50);
+    }
+    
+    pane.indicatorSeries.setData(indicatorData);
 }

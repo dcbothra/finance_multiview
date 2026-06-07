@@ -286,7 +286,7 @@ body {
 }
 
 /* Sleek inputs & dropdowns */
-.source-select, .timeframe-select, .presets-select, .symbol-input {
+.source-select, .timeframe-select, .presets-select, .symbol-input, .indicator-select {
     background: var(--bg-control);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
@@ -299,12 +299,12 @@ body {
     transition: all 0.2s ease;
 }
 
-.source-select:hover, .timeframe-select:hover, .presets-select:hover, .symbol-input:hover {
+.source-select:hover, .timeframe-select:hover, .presets-select:hover, .symbol-input:hover, .indicator-select:hover {
     border-color: rgba(255, 255, 255, 0.15);
     background: rgba(30, 41, 59, 0.9);
 }
 
-.source-select:focus, .timeframe-select:focus, .presets-select:focus, .symbol-input:focus {
+.source-select:focus, .timeframe-select:focus, .presets-select:focus, .symbol-input:focus, .indicator-select:focus {
     border-color: var(--border-focus);
     box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
