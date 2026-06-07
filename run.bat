@@ -4,6 +4,20 @@ echo ==================================================
 echo           Starting Finance MultiView
 echo ==================================================
 
+:: Create Desktop Shortcut if it does not exist yet
+set "SHORTCUT_PATH=%userprofile%\Desktop\Finance MultiView.lnk"
+if not exist "%SHORTCUT_PATH%" (
+    echo Creating Desktop Shortcut...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$s = (New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT_PATH%'); ^
+         $s.TargetPath = '%~dp0run.bat'; ^
+         $s.WorkingDirectory = '%~dp0'; ^
+         $s.IconLocation = 'shell32.dll,170'; ^
+         $s.Description = 'Launch Finance MultiView Charting Dashboard'; ^
+         $s.Save()"
+    echo Desktop shortcut successfully created!
+)
+
 :: Check for Python
 where python >nul 2>nul
 if %errorlevel% neq 0 (
